@@ -15,19 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Garage PM.  If not, see <http://www.gnu.org/licenses/>.
 
-from PyQt5.QtWidgets import QApplication
-from chicken_turtle_util import cli
-from garage_pm import __version__
-from garage_pm.views import MainWindow
-import sys
+# http://stackoverflow.com/a/30091579/1031434
+from signal import signal, SIGPIPE, SIG_DFL
+signal(SIGPIPE, SIG_DFL) # Ignore SIGPIPE
 
-class Context(cli.DataDirectoryMixin('garage_pm'), cli.BasicsMixin(__version__), cli.Context):
-    pass
-
-@Context.command()    
-def main(context):
-    app = QApplication(sys.argv)
-    dialog = MainWindow()
-    #TheController(context, dialog)
-    dialog.show()
-    sys.exit(app.exec_())

@@ -15,19 +15,26 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Garage PM.  If not, see <http://www.gnu.org/licenses/>.
 
-from PyQt5.QtWidgets import QApplication
-from chicken_turtle_util import cli
-from garage_pm import __version__
-from garage_pm.views import MainWindow
-import sys
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QHBoxLayout, QScrollBar, QDoubleSpinBox, QGridLayout, QPushButton, QLabel, QWidget, QAbstractButton, QAbstractSpinBox, QSlider
+from PyQt5.QtGui import QFont
 
-class Context(cli.DataDirectoryMixin('garage_pm'), cli.BasicsMixin(__version__), cli.Context):
-    pass
-
-@Context.command()    
-def main(context):
-    app = QApplication(sys.argv)
-    dialog = MainWindow()
-    #TheController(context, dialog)
-    dialog.show()
-    sys.exit(app.exec_())
+class MainWindow(QWidget):
+    def __init__(self, parent=None, f=Qt.Widget):
+        super().__init__(parent, f)
+        
+        self.setWindowFlags(Qt.Window)
+        self.setFocusPolicy(Qt.ClickFocus)
+        self.setWindowTitle('Garage PM')
+        self.resize(1800, 900)
+        
+        label = QLabel("Hello world")
+        
+        # Grid layout
+        layout = QGridLayout()
+        layout.addWidget(label, 0, 0)
+        
+        # Finish window
+        self.setLayout(layout)
+            
+    

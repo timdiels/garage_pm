@@ -1,3 +1,13 @@
+build
+.coverage
+.testmondata
+.tmontmp
+.cache
+last_test_runs
+docs/build
+docs/api
+dist
+.settings
 *.orig
 *.swp
 .project
