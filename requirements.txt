@@ -1,14 +1,14 @@
 pytest==2.9.1
-pytest-env==0.6.0
-pytest-xdist==1.14
 -e file:///home/limyreth/doc/eclipse_workspace/chicken_turtle_util
 click==6.6
-pyxdg==0.25
-more-itertools==2.2
+pytest-env==0.6.0
 Sphinx==1.4.1             # via sphinx-rtd-theme
 numpydoc==0.6.0
-sphinx-rtd-theme==0.1.9
+pyxdg==0.25
+more-itertools==2.2
+pytest-xdist==1.14
 pytest-cov==2.2.1
+sphinx-rtd-theme==0.1.9
 coverage-pth==0.0.1
 alabaster==0.7.7          # via sphinx
 apipkg==1.4               # via execnet

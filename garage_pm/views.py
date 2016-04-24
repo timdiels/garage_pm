@@ -19,8 +19,12 @@
 Qt views
 '''
 
-from PyQt5.QtCore import Qt, QModelIndex 
-from PyQt5.QtWidgets import QHBoxLayout, QGridLayout, QPushButton, QLabel, QWidget, QAbstractButton, QTreeView
+from PyQt5.QtCore import Qt, QModelIndex
+from PyQt5.QtWidgets import (
+    QHBoxLayout, QGridLayout, QPushButton, QLabel, QWidget, QAbstractButton,
+    QTreeView, QFormLayout, QLineEdit, QTextEdit, QDateTimeEdit, QDateEdit,
+    QTimeEdit, QCheckBox, QDoubleSpinBox, QAbstractItemView
+)
 
 class TreeView(QTreeView):
 
@@ -72,10 +76,106 @@ class TreeView(QTreeView):
                 self.model().removeRow(index.row(), index.parent())
         else:
             super().keyPressEvent(event)
+            
+class DurationEdit(QWidget):
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+        self._days_label = QLabel('days')
+        self._days_edit = QDoubleSpinBox()
+        self._days_edit.setDecimals(0)
+        self._days_edit.setMinimum(0)
+        
+        self._hours_label = QLabel('hours')
+        self._hours_edit = QDoubleSpinBox()
+        self._hours_edit.setDecimals(0)
+        self._hours_edit.setMinimum(0)
+        self._hours_edit.setMaximum(23)
+        
+        self._minutes_label = QLabel('minutes')
+        self._minutes_edit = QDoubleSpinBox()
+        self._minutes_edit.setDecimals(0)
+        self._minutes_edit.setMinimum(0)
+        self._minutes_edit.setMaximum(59)
+        
+        layout = QHBoxLayout()
+        layout.addWidget(self._days_edit)
+        layout.addWidget(self._days_label)
+        layout.addWidget(self._hours_edit)
+        layout.addWidget(self._hours_label)
+        layout.addWidget(self._minutes_edit)
+        layout.addWidget(self._minutes_label)
+        
+        self.setLayout(layout)
+            
+class TaskDetailsView(QWidget):
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+        self.name_label = QLabel('Name')
+        self.name_edit = QLineEdit()
+        
+        self.description_label = QLabel('Description')
+        self.description_edit = QTextEdit()
+        
+        self.start_date_planned_label = QLabel('Start date (planned)')
+        self.start_date_planned_edit = QDateTimeEdit()
+        
+        self.end_date_planned_label = QLabel('End date (planned)')
+        self.end_date_planned_edit = QDateTimeEdit()
+        self.end_date_planned_edit.setEnabled(False)
+        
+        self.start_date_expected_label = QLabel('Start date (expected)')
+        self.start_date_expected_edit = QDateTimeEdit()
+        self.start_date_expected_edit.setEnabled(False)
+        
+        self.end_date_expected_label = QLabel('End date (expected)')
+        self.end_date_expected_edit = QDateTimeEdit()
+        self.end_date_expected_edit.setEnabled(False)
+        
+        self.finished_edit = QCheckBox('Finished')
+        self.milestone_edit = QCheckBox('Milestone')
+        
+        self.effort_optimistic_label = QLabel('Effort (optimistic)')
+        self.effort_optimistic_edit = DurationEdit()
+        
+        self.effort_likely_label = QLabel('Effort (likely)')
+        self.effort_likely_edit = DurationEdit()
+        
+        self.effort_pessimistic_label = QLabel('Effort (pessimistic)')
+        self.effort_pessimistic_edit = DurationEdit()
+        
+        self.effort_estimated_label = QLabel('Effort (estimated)')
+        self.effort_estimated_edit = DurationEdit()
+        self.effort_estimated_edit.setEnabled(False)
+        
+        self.effort_actual_label = QLabel('Effort (actual)')
+        self.effort_actual_edit = DurationEdit()
+        self.effort_actual_edit.setEnabled(False)
+        
+        layout = QFormLayout()
+        layout.addRow(self.name_label, self.name_edit)
+        layout.addRow(self.description_label, self.description_edit)
+        layout.addRow(self.start_date_planned_label, self.start_date_planned_edit)
+        layout.addRow(self.end_date_planned_label, self.end_date_planned_edit)
+        layout.addRow(self.start_date_expected_label, self.start_date_expected_edit)
+        layout.addRow(self.end_date_expected_label, self.end_date_expected_edit)
+        layout.addRow(QLabel('Various'), self.finished_edit)
+        layout.addRow(None, self.milestone_edit)
+        layout.addRow(self.effort_optimistic_label, self.effort_optimistic_edit)
+        layout.addRow(self.effort_likely_label, self.effort_likely_edit)
+        layout.addRow(self.effort_pessimistic_label, self.effort_pessimistic_edit)
+        layout.addRow(self.effort_estimated_label, self.effort_estimated_edit)
+        layout.addRow(self.effort_actual_label, self.effort_actual_edit)
+        
+        self.setLayout(layout)
 
 class MainWindow(QWidget):
-    def __init__(self, parent=None, f=Qt.Widget):
-        super().__init__(parent, f)
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
         
         self.setWindowFlags(Qt.Window)
         self.setFocusPolicy(Qt.ClickFocus)
@@ -87,9 +187,13 @@ class MainWindow(QWidget):
         self.task_tree_view.setWordWrap(True)
         self.task_tree_view.setHeaderHidden(True)
         
+        #
+        self.task_details_view = TaskDetailsView()
+        
         # Grid layout
         layout = QGridLayout()
         layout.addWidget(self.task_tree_view, 0, 0)
+        layout.addWidget(self.task_details_view, 0, 1)
         
         # Finish window
         self.setLayout(layout)

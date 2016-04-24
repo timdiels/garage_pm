@@ -32,16 +32,16 @@ class TaskTreeModel(QAbstractItemModel):
         super().__init__(parent)
         
         # Test data
-        root_task = Task('root 1')
-        child1 = Task('child 1.1')
+        root_task = Task('root 1', self)
+        child1 = Task('child 1.1', self)
         child1._parent = root_task
-        child2 = Task('child 1.2')
+        child2 = Task('child 1.2', self)
         child2._parent = root_task
         root_task._children = [child1, child2]
         
-        child11 = Task('child 1.1.1')
+        child11 = Task('child 1.1.1', self)
         child11._parent = child1
-        child12 = Task('child 1.1.2')
+        child12 = Task('child 1.1.2', self)
         child12._parent = child1
         child1._children = [child11, child12]
         ######
@@ -117,7 +117,7 @@ class TaskTreeModel(QAbstractItemModel):
             return False  # no insert at root
         self.beginInsertRows(parent, row, row + count - 1)
         task = parent.internalPointer()
-        task.insert_children(row, [Task('task') for _ in range(count)])
+        task.insert_children(row, [Task('task', self) for _ in range(count)])
         self.endInsertRows()
         return True
         
@@ -152,5 +152,17 @@ class TaskTreeModel(QAbstractItemModel):
         self.endMoveRows()
         return True
     
-    
+    def task(self, index):
+        '''
+        Get task associated with index
+        
+        Returns
+        -------
+        Task or None
+            Return task, or None if index is invalid
+        '''
+        if index.isValid():
+            return index.internalPointer()
+        else:
+            return None
     

@@ -19,13 +19,39 @@
 PM domain classes
 '''
 
-class Task(object):
+from PyQt5.QtCore import QObject, pyqtSignal
+
+class Task(QObject):
     
-    def __init__(self, name):
-        self.name = name
-        self.description = ''
+    name_changed = pyqtSignal([str])
+    description_changed = pyqtSignal([str])
+    
+    def __init__(self, name, parent):
+        super().__init__(parent)
+        self._name = name
+        self._description = 'derp'
         self._parent = None
         self._children = []
+        
+    @property
+    def name(self):
+        return self._name
+    
+    @name.setter
+    def name(self, value):
+        if self._name != value:
+            self._name = value
+            self.name_changed.emit(self._name)
+            
+    @property
+    def description(self):
+        return self._description
+    
+    @description.setter
+    def description(self, value):
+        if self._description != value:
+            self._description = value
+            self.description_changed.emit(self._description)
     
     @property
     def children(self):
