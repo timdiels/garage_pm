@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Garage PM.  If not, see <http://www.gnu.org/licenses/>.
 
-from PyQt5.QtCore import Qt, QObject, QItemSelectionModel
+from PyQt5.QtCore import QObject, QItemSelectionModel
 from PyQt5.QtWidgets import QApplication
 from chicken_turtle_util import cli
 from garage_pm import __version__
@@ -40,15 +40,21 @@ class TaskDetailsController(QObject):
         self._task = None
         
         # Bind from view to task
-        def set_task_name(name):
-            if self._task:
-                self._task.name = name
-        self._view.name_edit.textChanged.connect(set_task_name)
+        def task_setter(attr):
+            def setter(value):
+                if self._task:
+                    setattr(self._task, attr, value)
+            return setter
         
         def set_task_description():
             if self._task:
                 self._task.description = self._view.description_edit.toPlainText()
+                
+        self._view.name_edit.textChanged.connect(task_setter('name'))
         self._view.description_edit.textChanged.connect(set_task_description)
+        self._view.effort_optimistic_edit.duration_changed.connect(task_setter('effort_optimistic'))
+        self._view.effort_likely_edit.duration_changed.connect(task_setter('effort_likely'))
+        self._view.effort_pessimistic_edit.duration_changed.connect(task_setter('effort_pessimistic'))
         
     @property
     def task(self):
@@ -83,10 +89,18 @@ class TaskDetailsController(QObject):
             # Fake events to init
             self._view.name_edit.setText(self._task.name)
             self._view.description_edit.setText(self._task.description)
+            self._view.effort_optimistic_edit.duration = self._task.effort_optimistic
+            self._view.effort_likely_edit.duration = self._task.effort_likely
+            self._view.effort_pessimistic_edit.duration = self._task.effort_pessimistic
+            self._view.effort_estimated_edit.set_duration(self._task.effort_estimated)
             
     def _connect(self, connect_=True):
-        connect(self._task.name_changed, self._view.name_edit.textChanged, connect_)
-        connect(self._task.description_changed, self._view.description_edit.textChanged, connect_)
+        connect(self._task.name_changed, self._view.name_edit.setText, connect_)
+        connect(self._task.description_changed, self._view.description_edit.setPlainText, connect_)
+        connect(self._task.effort_optimistic_changed, self._view.effort_optimistic_edit.set_duration, connect_)
+        connect(self._task.effort_likely_changed, self._view.effort_likely_edit.set_duration, connect_)
+        connect(self._task.effort_pessimistic_changed, self._view.effort_pessimistic_edit.set_duration, connect_)
+        connect(self._task.effort_estimated_changed, self._view.effort_estimated_edit.set_duration, connect_)
         
 class TaskTreeViewController(QObject):
     

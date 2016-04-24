@@ -19,12 +19,13 @@
 Qt views
 '''
 
-from PyQt5.QtCore import Qt, QModelIndex
+from PyQt5.QtCore import Qt, QModelIndex, pyqtSignal
 from PyQt5.QtWidgets import (
     QHBoxLayout, QGridLayout, QPushButton, QLabel, QWidget, QAbstractButton,
     QTreeView, QFormLayout, QLineEdit, QTextEdit, QDateTimeEdit, QDateEdit,
-    QTimeEdit, QCheckBox, QDoubleSpinBox, QAbstractItemView
+    QTimeEdit, QCheckBox, QSpinBox, QAbstractItemView
 )
+from garage_pm.domain import Duration
 
 class TreeView(QTreeView):
 
@@ -79,23 +80,22 @@ class TreeView(QTreeView):
             
 class DurationEdit(QWidget):
     
+    duration_changed = pyqtSignal([Duration])
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         
         self._days_label = QLabel('days')
-        self._days_edit = QDoubleSpinBox()
-        self._days_edit.setDecimals(0)
+        self._days_edit = QSpinBox()
         self._days_edit.setMinimum(0)
         
         self._hours_label = QLabel('hours')
-        self._hours_edit = QDoubleSpinBox()
-        self._hours_edit.setDecimals(0)
+        self._hours_edit = QSpinBox()
         self._hours_edit.setMinimum(0)
         self._hours_edit.setMaximum(23)
         
         self._minutes_label = QLabel('minutes')
-        self._minutes_edit = QDoubleSpinBox()
-        self._minutes_edit.setDecimals(0)
+        self._minutes_edit = QSpinBox()
         self._minutes_edit.setMinimum(0)
         self._minutes_edit.setMaximum(59)
         
@@ -108,6 +108,30 @@ class DurationEdit(QWidget):
         layout.addWidget(self._minutes_label)
         
         self.setLayout(layout)
+        
+        self._days_edit.valueChanged.connect(self._on_value_changed)
+        self._hours_edit.valueChanged.connect(self._on_value_changed)
+        self._minutes_edit.valueChanged.connect(self._on_value_changed)
+        
+    def _on_value_changed(self):
+        self.duration_changed.emit(self.duration)
+        
+    @property
+    def duration(self):
+        '''
+        Returns
+        -------
+        domain.Duration
+        '''
+        return Duration(self._days_edit.value(), self._hours_edit.value(), self._minutes_edit.value())
+    
+    @duration.setter
+    def duration(self, value):
+        self._days_edit.setValue(value.days)
+        self._hours_edit.setValue(value.hours)
+        self._minutes_edit.setValue(value.minutes)
+        
+    set_duration = duration.fset
             
 class TaskDetailsView(QWidget):
     
