@@ -21,68 +21,41 @@ PM domain classes
 
 from PyQt5.QtCore import QObject, pyqtSignal
 import math
-
-class Duration(object):
+from datetime import timedelta
     
-    def __init__(self, days=0, hours=0, minutes=0):
+class Interval(object):
+    
+    def __init__(self, begin, end):
         '''
         Parameters
         ----------
-        days : int
-        hours : int
-        minutes : int
+        start : datetime.datetime
+        end : datetime.datetime
         '''
-        assert hours < 24
-        assert minutes < 60
-        assert days >= 0
-        assert hours >= 0
-        assert minutes >= 0
-        self._days = days
-        self._hours = hours
-        self._minutes = minutes
+        assert begin < end 
+        self._begin = begin
+        self._end = end
         
     @property
-    def days(self):
-        return self._days
+    def begin(self):
+        return self._begin
     
     @property
-    def hours(self):
-        return self._hours
-        
+    def end(self):
+        return self._end
+    
     @property
-    def minutes(self):
-        return self._minutes
-        
-    def to_hours(self):
-        '''
-        Total duration as hours
-        
-        Returns
-        -------
-        float
-        '''
-        return self.days * 24 + self.hours + self.minutes / 60
-        
-    @staticmethod
-    def from_hours(hours):
-        '''
-        Parameters
-        ----------
-        hours : float
-        '''
-        days, hours = divmod(hours, 24)
-        minutes, hours = math.modf(hours)
-        minutes *= 60
-        return Duration(days, hours, minutes)
+    def duration(self):
+        return self._end - self._begin
 
 class Task(QObject):
     
     name_changed = pyqtSignal([str])
     description_changed = pyqtSignal([str])
-    effort_optimistic_changed = pyqtSignal([Duration])
-    effort_likely_changed = pyqtSignal([Duration])
-    effort_pessimistic_changed = pyqtSignal([Duration])
-    effort_estimated_changed = pyqtSignal([Duration])
+    effort_optimistic_changed = pyqtSignal([timedelta])
+    effort_likely_changed = pyqtSignal([timedelta])
+    effort_pessimistic_changed = pyqtSignal([timedelta])
+    effort_estimated_changed = pyqtSignal([timedelta])
     
     def __init__(self, name, parent):
         super().__init__(parent)
@@ -90,9 +63,10 @@ class Task(QObject):
         self._children = []
         self._name = name
         self._description = ''
-        self._effort_optimistic = Duration()
-        self._effort_likely = Duration()
-        self._effort_pessimistic = Duration()
+        self._effort_optimistic = timedelta()
+        self._effort_likely = timedelta()
+        self._effort_pessimistic = timedelta()
+        self._actual_efforts = []
         
         self.effort_optimistic_changed.connect(self._on_effort_input_changed)
         self.effort_likely_changed.connect(self._on_effort_input_changed)
@@ -161,7 +135,29 @@ class Task(QObject):
             
     @property
     def effort_estimated(self):
-        return Duration.from_hours((self._effort_optimistic.to_hours() + 4 * self._effort_likely.to_hours() + self._effort_pessimistic.to_hours())/6)
+        return (self._effort_optimistic + 4 * self._effort_likely + self._effort_pessimistic)/6
+    
+    @property
+    def actual_efforts(self):
+        '''
+        Get list of intervals during which one has worked on the task
+        
+        Returns
+        -------
+        tuple([Interval])
+        '''
+        return tuple(self._actual_efforts)
+    
+    @property
+    def effort_actual(self):
+        '''
+        Get total effort spent on this task
+        
+        Notes
+        -----
+        Effort of child tasks is excluded, like the other effort_* attributes.
+        '''
+        return sum(x.duration for x in self._actual_efforts)
     
     @property
     def children(self):

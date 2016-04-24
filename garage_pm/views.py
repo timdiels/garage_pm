@@ -23,9 +23,9 @@ from PyQt5.QtCore import Qt, QModelIndex, pyqtSignal
 from PyQt5.QtWidgets import (
     QHBoxLayout, QGridLayout, QPushButton, QLabel, QWidget, QAbstractButton,
     QTreeView, QFormLayout, QLineEdit, QTextEdit, QDateTimeEdit, QDateEdit,
-    QTimeEdit, QCheckBox, QSpinBox, QAbstractItemView
+    QTimeEdit, QCheckBox, QSpinBox, QAbstractItemView, QTableView
 )
-from garage_pm.domain import Duration
+from datetime import timedelta
 
 class TreeView(QTreeView):
 
@@ -80,7 +80,7 @@ class TreeView(QTreeView):
             
 class DurationEdit(QWidget):
     
-    duration_changed = pyqtSignal([Duration])
+    duration_changed = pyqtSignal([timedelta])
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -123,13 +123,15 @@ class DurationEdit(QWidget):
         -------
         domain.Duration
         '''
-        return Duration(self._days_edit.value(), self._hours_edit.value(), self._minutes_edit.value())
+        return timedelta(days=self._days_edit.value(), hours=self._hours_edit.value(), minutes=self._minutes_edit.value())
     
     @duration.setter
     def duration(self, value):
         self._days_edit.setValue(value.days)
-        self._hours_edit.setValue(value.hours)
-        self._minutes_edit.setValue(value.minutes)
+        minutes = value.seconds // 60
+        hours, minutes = divmod(minutes, 60)
+        self._hours_edit.setValue(hours)
+        self._minutes_edit.setValue(minutes)
         
     set_duration = duration.fset
     
