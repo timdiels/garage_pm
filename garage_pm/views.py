@@ -132,6 +132,11 @@ class DurationEdit(QWidget):
         self._minutes_edit.setValue(value.minutes)
         
     set_duration = duration.fset
+    
+    def setReadOnly(self, value):
+        self._days_edit.setReadOnly(value)
+        self._hours_edit.setReadOnly(value)
+        self._minutes_edit.setReadOnly(value)
             
 class TaskDetailsView(QWidget):
     
@@ -149,15 +154,15 @@ class TaskDetailsView(QWidget):
         
         self.end_date_planned_label = QLabel('End date (planned)')
         self.end_date_planned_edit = QDateTimeEdit()
-        self.end_date_planned_edit.setEnabled(False)
+        self.end_date_planned_edit.setReadOnly(True)
         
         self.start_date_expected_label = QLabel('Start date (expected)')
         self.start_date_expected_edit = QDateTimeEdit()
-        self.start_date_expected_edit.setEnabled(False)
+        self.start_date_expected_edit.setReadOnly(True)
         
         self.end_date_expected_label = QLabel('End date (expected)')
         self.end_date_expected_edit = QDateTimeEdit()
-        self.end_date_expected_edit.setEnabled(False)
+        self.end_date_expected_edit.setReadOnly(True)
         
         self.finished_edit = QCheckBox('Finished')
         self.milestone_edit = QCheckBox('Milestone')
@@ -173,11 +178,11 @@ class TaskDetailsView(QWidget):
         
         self.effort_estimated_label = QLabel('Effort (estimated)')
         self.effort_estimated_edit = DurationEdit()
-        self.effort_estimated_edit.setEnabled(False)
+        self.effort_estimated_edit.setReadOnly(True)
         
         self.effort_actual_label = QLabel('Effort (actual)')
         self.effort_actual_edit = DurationEdit()
-        self.effort_actual_edit.setEnabled(False)
+        self.effort_actual_edit.setReadOnly(True)
         
         layout = QFormLayout()
         layout.addRow(self.name_label, self.name_edit)
