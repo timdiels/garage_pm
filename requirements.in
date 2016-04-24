@@ -1,4 +1,7 @@
 # List of required dependencies
 -e /home/limyreth/doc/eclipse_workspace/chicken_turtle_util
+sip==4.17
+PyQt5==5.5.1
 click
 pyxdg
+more_itertools

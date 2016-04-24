@@ -15,9 +15,63 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Garage PM.  If not, see <http://www.gnu.org/licenses/>.
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QHBoxLayout, QScrollBar, QDoubleSpinBox, QGridLayout, QPushButton, QLabel, QWidget, QAbstractButton, QAbstractSpinBox, QSlider
-from PyQt5.QtGui import QFont
+'''
+Qt views
+'''
+
+from PyQt5.QtCore import Qt, QModelIndex 
+from PyQt5.QtWidgets import QHBoxLayout, QGridLayout, QPushButton, QLabel, QWidget, QAbstractButton, QTreeView
+
+class TreeView(QTreeView):
+
+    @property
+    def _selected_index(self):
+        indices = self.selectedIndexes()
+        if indices:
+            return indices[0]
+        else:
+            return QModelIndex()
+        
+    def keyPressEvent(self, event):
+        if event.modifiers() == Qt.ControlModifier:
+            index = self._selected_index
+            if index.isValid():
+                model = self.model()
+                parent = index.parent()
+                if event.key() == Qt.Key_A:
+                    if parent.isValid():
+                        # append
+                        model.insertRow(index.row()+1, parent)
+                    else:  # root
+                        # append child
+                        model.insertRow(model.rowCount(index), index)
+                elif event.key() == Qt.Key_Left:
+                    # Move selection up a level
+                    if parent.isValid():
+                        grand_parent = parent.parent()
+                        if grand_parent.isValid():
+                            model.moveRow(parent, index.row(), grand_parent, parent.row()+1)
+                elif event.key() == Qt.Key_Right:
+                    # Move selection down a level
+                    if parent.isValid() and index.row() > 0:
+                        index_above = index.sibling(index.row()-1, 0)
+                        model.moveRow(parent, index.row(), index_above, model.rowCount(index_above))
+                elif event.key() == Qt.Key_Up:
+                    # Move up a row, unless top row
+                    if parent.isValid() and index.row() > 0:
+                        model.moveRow(parent, index.row(), parent, index.row()-1)
+                elif event.key() == Qt.Key_Down:
+                    # Move down a row, unless bottom row
+                    if parent.isValid() and model.rowCount(parent)-1 != index.row():
+                        model.moveRow(parent, index.row(), parent, index.row()+2)
+                else:
+                    super().keyPressEvent(event)
+        elif event.key() == Qt.Key_Delete:
+            index = self._selected_index
+            if index.isValid():
+                self.model().removeRow(index.row(), index.parent())
+        else:
+            super().keyPressEvent(event)
 
 class MainWindow(QWidget):
     def __init__(self, parent=None, f=Qt.Widget):
@@ -28,13 +82,17 @@ class MainWindow(QWidget):
         self.setWindowTitle('Garage PM')
         self.resize(1800, 900)
         
-        label = QLabel("Hello world")
+        #
+        self.task_tree_view = TreeView()
+        self.task_tree_view.setWordWrap(True)
+        self.task_tree_view.setHeaderHidden(True)
         
         # Grid layout
         layout = QGridLayout()
-        layout.addWidget(label, 0, 0)
+        layout.addWidget(self.task_tree_view, 0, 0)
         
         # Finish window
         self.setLayout(layout)
-            
+        
+        
     

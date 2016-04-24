@@ -19,15 +19,24 @@ from PyQt5.QtWidgets import QApplication
 from chicken_turtle_util import cli
 from garage_pm import __version__
 from garage_pm.views import MainWindow
+from garage_pm.models import TaskTreeModel
 import sys
 
 class Context(cli.DataDirectoryMixin('garage_pm'), cli.BasicsMixin(__version__), cli.Context):
     pass
 
+class TaskTreeController(object):
+    
+    def __init__(self, root_task, tree_view):
+        self._model = TaskTreeModel(root_task, tree_view)
+        tree_view.setModel(self._model)
+#         tree_view
+
 @Context.command()    
 def main(context):
     app = QApplication(sys.argv)
-    dialog = MainWindow()
-    #TheController(context, dialog)
-    dialog.show()
+    root_task = None
+    window = MainWindow()
+    TaskTreeController(root_task, window.task_tree_view)
+    window.show()
     sys.exit(app.exec_())

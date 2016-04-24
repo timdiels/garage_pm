@@ -43,7 +43,7 @@ setup(
     'entry_points': {'console_scripts': ['garage-pm = garage_pm.main:main']},
     'extras_require': {   'dev': ['sphinx', 'numpydoc', 'sphinx-rtd-theme'],
                           'test': ['pytest', 'pytest-env', 'pytest-xdist', 'pytest-cov', 'coverage-pth']},
-    'install_requires': ['chicken-turtle-util', 'click', 'pyxdg'],
+    'install_requires': ['chicken-turtle-util', 'click', 'pyxdg', 'more-itertools'],
     'keywords': 'office project-management',
     'license': 'LGPL3',
     'long_description': 'A basic cross-platform project management tool with a focus on one-man\n'
