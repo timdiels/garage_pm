@@ -150,8 +150,8 @@ class DateTimeItemDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         edit = QDateTimeEdit(parent)
         edit.setFrame(False)
-        edit.setDisplayFormat(config.qt_date_format)
-        config.date_format
+        edit.setDisplayFormat(config.qt_date_time_format)
+        edit.setCalendarPopup(True)
         return edit
     
     def setEditorData(self, editor, index):
@@ -189,18 +189,26 @@ class TaskDetailsView(QWidget):
         
         self.start_date_planned_label = QLabel('Start date (planned)')
         self.start_date_planned_edit = QDateTimeEdit()
+        self.start_date_planned_edit.setCalendarPopup(True)
+        self.start_date_planned_edit.setDisplayFormat(config.qt_date_time_format)
         
         self.end_date_planned_label = QLabel('End date (planned)')
         self.end_date_planned_edit = QDateTimeEdit()
         self.end_date_planned_edit.setReadOnly(True)
+        self.end_date_planned_edit.setCalendarPopup(True)
+        self.end_date_planned_edit.setDisplayFormat(config.qt_date_time_format)
         
         self.start_date_expected_label = QLabel('Start date (expected)')
         self.start_date_expected_edit = QDateTimeEdit()
         self.start_date_expected_edit.setReadOnly(True)
+        self.start_date_expected_edit.setCalendarPopup(True)
+        self.start_date_expected_edit.setDisplayFormat(config.qt_date_time_format)
         
         self.end_date_expected_label = QLabel('End date (expected)')
         self.end_date_expected_edit = QDateTimeEdit()
         self.end_date_expected_edit.setReadOnly(True)
+        self.end_date_expected_edit.setCalendarPopup(True)
+        self.end_date_expected_edit.setDisplayFormat(config.qt_date_time_format)
         
         self.finished_edit = QCheckBox('Finished')
         self.milestone_edit = QCheckBox('Milestone')

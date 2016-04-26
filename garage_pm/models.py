@@ -200,7 +200,7 @@ class TaskEffortSpentModel(QAbstractTableModel):
             else:
                 date = effort.end
             if role == Qt.DisplayRole:
-                return date.strftime(config.date_format)
+                return date.strftime(config.date_time_format)
             elif role == Qt.EditRole:
                 return date
         return None

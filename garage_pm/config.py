@@ -15,5 +15,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Garage PM.  If not, see <http://www.gnu.org/licenses/>.
 
-date_format = '%d-%m-%Y %H:%M'  # according to datetime.strftime
-qt_date_format = 'dd-MM-yyyy hh:mm'  # according to http://doc.qt.io/qt-4.8/qdatetime.html#toString
+date_format = '%d-%m-%Y'
+qt_date_format = 'dd-MM-yyyy'
+
+date_time_format = date_format + ' %H:%M'  # according to datetime.strftime
+qt_date_time_format = qt_date_format + ' hh:mm'  # according to http://doc.qt.io/qt-4.8/qdatetime.html#toString
