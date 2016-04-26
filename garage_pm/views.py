@@ -21,13 +21,14 @@ Qt views
 
 from PyQt5.QtCore import Qt, QModelIndex, pyqtSignal
 from PyQt5.QtWidgets import (
-    QHBoxLayout, QGridLayout, QPushButton, QLabel, QWidget, QAbstractButton,
+    QHBoxLayout, QGridLayout, QPushButton, QLabel, QWidget,
     QTreeView, QFormLayout, QLineEdit, QTextEdit, QDateTimeEdit,
-    QTimeEdit, QCheckBox, QSpinBox, QAbstractItemView, QTableView,
-    QHeaderView, QStyledItemDelegate
+    QCheckBox, QSpinBox, QAbstractItemView, QTableView,
+    QHeaderView, QStyledItemDelegate, QRadioButton
 )
 from datetime import timedelta
 from garage_pm import config
+from garage_pm.domain import TaskState
 
 class TreeView(QTreeView):
 
@@ -210,7 +211,13 @@ class TaskDetailsView(QWidget):
         self.end_date_expected_edit.setCalendarPopup(True)
         self.end_date_expected_edit.setDisplayFormat(config.qt_date_time_format)
         
-        self.finished_edit = QCheckBox('Finished')
+        task_radios_layout = QHBoxLayout()
+        self.task_state_radios = set()
+        for state in TaskState:
+            radio = QRadioButton(state.value)
+            self.task_state_radios.add(radio)
+            task_radios_layout.addWidget(radio)
+        
         self.milestone_edit = QCheckBox('Milestone')
         
         self.optimistic_effort_label = QLabel('Effort (optimistic)')
@@ -230,17 +237,7 @@ class TaskDetailsView(QWidget):
         self.actual_effort_edit = DurationEdit()
         self.actual_effort_edit.setReadOnly(True)
         
-        self.effort_spent_table = EffortSpentTableView()
-        self.effort_spent_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.effort_spent_table.setSortingEnabled(True)
-        self.effort_spent_table.setItemDelegate(DateTimeItemDelegate())
-        self.effort_spent_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.track_effort_button = QPushButton('Start')
-        self.add_effort_spent_button = QPushButton('Add')
-        effort_spent_layout = QGridLayout()
-        effort_spent_layout.addWidget(self.effort_spent_table, 0, 0, 1, 2)
-        effort_spent_layout.addWidget(self.track_effort_button, 1, 0)
-        effort_spent_layout.addWidget(self.add_effort_spent_button, 1, 1)
+        effort_spent_layout = self._create_effort_spent_layout()
         
         layout = QFormLayout()
         layout.addRow(self.name_label, self.name_edit)
@@ -249,7 +246,7 @@ class TaskDetailsView(QWidget):
         layout.addRow(self.end_date_planned_label, self.end_date_planned_edit)
         layout.addRow(self.start_date_expected_label, self.start_date_expected_edit)
         layout.addRow(self.end_date_expected_label, self.end_date_expected_edit)
-        layout.addRow(QLabel('Various'), self.finished_edit)
+        layout.addRow(QLabel('State'), task_radios_layout)
         layout.addRow(None, self.milestone_edit)
         layout.addRow(self.optimistic_effort_label, self.optimistic_effort_edit)
         layout.addRow(self.likely_effort_label, self.likely_effort_edit)
@@ -259,6 +256,22 @@ class TaskDetailsView(QWidget):
         layout.addRow(None, effort_spent_layout)
         
         self.setLayout(layout)
+
+    def _create_effort_spent_layout(self):
+        self.effort_spent_table = EffortSpentTableView()
+        self.effort_spent_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.effort_spent_table.setSortingEnabled(True)
+        self.effort_spent_table.setItemDelegate(DateTimeItemDelegate())
+        self.effort_spent_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.track_effort_button = QPushButton('Start')
+        self.add_effort_spent_button = QPushButton('Add')
+        
+        layout = QGridLayout()
+        layout.addWidget(self.effort_spent_table, 0, 0, 1, 2)
+        layout.addWidget(self.track_effort_button, 1, 0)
+        layout.addWidget(self.add_effort_spent_button, 1, 1)
+        
+        return layout
 
 class MainWindow(QWidget):
     

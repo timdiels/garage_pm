@@ -21,6 +21,7 @@ PM domain classes
 
 from PyQt5.QtCore import QObject, pyqtSignal
 from datetime import timedelta
+from enum import Enum
 
 class Interval(object):
     
@@ -69,6 +70,11 @@ class Interval(object):
         else:
             return self.begin < other.begin
 
+class TaskState(Enum):
+    planned = 'Planned'
+    finished = 'Finished'
+    cancelled = 'Cancelled'
+
 class Task(QObject):
     
     name_changed = pyqtSignal([str])
@@ -78,7 +84,8 @@ class Task(QObject):
     pessimistic_effort_changed = pyqtSignal([timedelta])
     predicted_effort_changed = pyqtSignal([timedelta])
     actual_effort_changed = pyqtSignal([timedelta])
-    effort_spent_changed = pyqtSignal() 
+    state_changed = pyqtSignal([TaskState])  # refers to self.state only
+    effort_spent_changed = pyqtSignal()
     
     def __init__(self, name, parent):
         super().__init__(parent)
@@ -90,6 +97,7 @@ class Task(QObject):
         self._likely_effort = timedelta()
         self._pessimistic_effort = timedelta()
         self._effort_spent = []
+        self._state = TaskState.planned
         
         self.optimistic_effort_changed.connect(self._on_effort_input_changed)
         self.likely_effort_changed.connect(self._on_effort_input_changed)
@@ -115,6 +123,21 @@ class Task(QObject):
         if self._description != value:
             self._description = value
             self.description_changed.emit(self._description)
+            
+    @property
+    def state(self):
+        '''
+        Returns
+        -------
+        TaskState
+        '''
+        return self._state
+    
+    @state.setter
+    def state(self, value):
+        if self._state != value:
+            self._state = value
+            self.state_changed.emit(self._state)
             
     @property
     def optimistic_effort(self):
