@@ -22,10 +22,12 @@ Qt views
 from PyQt5.QtCore import Qt, QModelIndex, pyqtSignal
 from PyQt5.QtWidgets import (
     QHBoxLayout, QGridLayout, QPushButton, QLabel, QWidget, QAbstractButton,
-    QTreeView, QFormLayout, QLineEdit, QTextEdit, QDateTimeEdit, QDateEdit,
-    QTimeEdit, QCheckBox, QSpinBox, QAbstractItemView, QTableView
+    QTreeView, QFormLayout, QLineEdit, QTextEdit, QDateTimeEdit,
+    QTimeEdit, QCheckBox, QSpinBox, QAbstractItemView, QTableView,
+    QHeaderView, QStyledItemDelegate
 )
 from datetime import timedelta
+from garage_pm import config
 
 class TreeView(QTreeView):
 
@@ -71,7 +73,7 @@ class TreeView(QTreeView):
                         model.moveRow(parent, index.row(), parent, index.row()+2)
                 else:
                     super().keyPressEvent(event)
-        elif event.key() == Qt.Key_Delete:
+        elif event.modifiers() == Qt.NoModifier and event.key() == Qt.Key_Delete:
             index = self._selected_index
             if index.isValid():
                 self.model().removeRow(index.row(), index.parent())
@@ -139,7 +141,41 @@ class DurationEdit(QWidget):
         self._days_edit.setReadOnly(value)
         self._hours_edit.setReadOnly(value)
         self._minutes_edit.setReadOnly(value)
+        
+class DateTimeItemDelegate(QStyledItemDelegate):
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+    def createEditor(self, parent, option, index):
+        edit = QDateTimeEdit(parent)
+        edit.setFrame(False)
+        edit.setDisplayFormat(config.qt_date_format)
+        config.date_format
+        return edit
+    
+    def setEditorData(self, editor, index):
+        editor.setDateTime(index.data(Qt.EditRole))
+        
+    def setModelData(self, editor, model, index):
+        model.setData(index, editor.dateTime().toPyDateTime())
+        
+    def updateEditorGeometry(self, editor, option, index):
+        editor.setGeometry(option.rect);
             
+class EffortSpentTableView(QTableView):
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+    def keyPressEvent(self, event):
+        if event.modifiers() == Qt.NoModifier and event.key() == Qt.Key_Delete:
+            rows = sorted((index.row() for index in self.selectedIndexes()), reverse=True)
+            for row in rows:
+                self.model().removeRow(row)
+        else:
+            super().keyPressEvent(event)
+                    
 class TaskDetailsView(QWidget):
     
     def __init__(self, parent=None):
@@ -169,22 +205,34 @@ class TaskDetailsView(QWidget):
         self.finished_edit = QCheckBox('Finished')
         self.milestone_edit = QCheckBox('Milestone')
         
-        self.effort_optimistic_label = QLabel('Effort (optimistic)')
-        self.effort_optimistic_edit = DurationEdit()
+        self.optimistic_effort_label = QLabel('Effort (optimistic)')
+        self.optimistic_effort_edit = DurationEdit()
         
-        self.effort_likely_label = QLabel('Effort (likely)')
-        self.effort_likely_edit = DurationEdit()
+        self.likely_effort_label = QLabel('Effort (likely)')
+        self.likely_effort_edit = DurationEdit()
         
-        self.effort_pessimistic_label = QLabel('Effort (pessimistic)')
-        self.effort_pessimistic_edit = DurationEdit()
+        self.pessimistic_effort_label = QLabel('Effort (pessimistic)')
+        self.pessimistic_effort_edit = DurationEdit()
         
-        self.effort_estimated_label = QLabel('Effort (estimated)')
-        self.effort_estimated_edit = DurationEdit()
-        self.effort_estimated_edit.setReadOnly(True)
+        self.predicted_effort_label = QLabel('Effort (predicted)')
+        self.predicted_effort_edit = DurationEdit()
+        self.predicted_effort_edit.setReadOnly(True)
         
-        self.effort_actual_label = QLabel('Effort (actual)')
-        self.effort_actual_edit = DurationEdit()
-        self.effort_actual_edit.setReadOnly(True)
+        self.actual_effort_label = QLabel('Effort (actual)')
+        self.actual_effort_edit = DurationEdit()
+        self.actual_effort_edit.setReadOnly(True)
+        
+        self.effort_spent_table = EffortSpentTableView()
+        self.effort_spent_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.effort_spent_table.setSortingEnabled(True)
+        self.effort_spent_table.setItemDelegate(DateTimeItemDelegate())
+        self.effort_spent_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.track_effort_button = QPushButton('Start')
+        self.add_effort_spent_button = QPushButton('Add')
+        effort_spent_layout = QGridLayout()
+        effort_spent_layout.addWidget(self.effort_spent_table, 0, 0, 1, 2)
+        effort_spent_layout.addWidget(self.track_effort_button, 1, 0)
+        effort_spent_layout.addWidget(self.add_effort_spent_button, 1, 1)
         
         layout = QFormLayout()
         layout.addRow(self.name_label, self.name_edit)
@@ -195,11 +243,12 @@ class TaskDetailsView(QWidget):
         layout.addRow(self.end_date_expected_label, self.end_date_expected_edit)
         layout.addRow(QLabel('Various'), self.finished_edit)
         layout.addRow(None, self.milestone_edit)
-        layout.addRow(self.effort_optimistic_label, self.effort_optimistic_edit)
-        layout.addRow(self.effort_likely_label, self.effort_likely_edit)
-        layout.addRow(self.effort_pessimistic_label, self.effort_pessimistic_edit)
-        layout.addRow(self.effort_estimated_label, self.effort_estimated_edit)
-        layout.addRow(self.effort_actual_label, self.effort_actual_edit)
+        layout.addRow(self.optimistic_effort_label, self.optimistic_effort_edit)
+        layout.addRow(self.likely_effort_label, self.likely_effort_edit)
+        layout.addRow(self.pessimistic_effort_label, self.pessimistic_effort_edit)
+        layout.addRow(self.predicted_effort_label, self.predicted_effort_edit)
+        layout.addRow(self.actual_effort_label, self.actual_effort_edit)
+        layout.addRow(None, effort_spent_layout)
         
         self.setLayout(layout)
 

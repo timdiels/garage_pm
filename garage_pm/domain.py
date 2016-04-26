@@ -20,9 +20,8 @@ PM domain classes
 '''
 
 from PyQt5.QtCore import QObject, pyqtSignal
-import math
 from datetime import timedelta
-    
+
 class Interval(object):
     
     def __init__(self, begin, end):
@@ -40,22 +39,46 @@ class Interval(object):
     def begin(self):
         return self._begin
     
+    @begin.setter
+    def begin(self, value):
+        self._validate(value, self._end)
+        self._begin = value
+    
     @property
     def end(self):
         return self._end
     
+    @end.setter
+    def end(self, value):
+        self._validate(self._begin, value)
+        self._end = value
+        
+    def _validate(self, begin, end):
+        if begin > end:
+            raise ValueError('Interval must begin before it ends')
+        if begin == end:
+            raise ValueError('Interval must not be empty (i.e. begin != end)')
+    
     @property
     def duration(self):
         return self._end - self._begin
+    
+    def __lt__(self, other):
+        if self.begin == other.begin:
+            return self.end < other.end
+        else:
+            return self.begin < other.begin
 
 class Task(QObject):
     
     name_changed = pyqtSignal([str])
     description_changed = pyqtSignal([str])
-    effort_optimistic_changed = pyqtSignal([timedelta])
-    effort_likely_changed = pyqtSignal([timedelta])
-    effort_pessimistic_changed = pyqtSignal([timedelta])
-    effort_estimated_changed = pyqtSignal([timedelta])
+    optimistic_effort_changed = pyqtSignal([timedelta])
+    likely_effort_changed = pyqtSignal([timedelta])
+    pessimistic_effort_changed = pyqtSignal([timedelta])
+    predicted_effort_changed = pyqtSignal([timedelta])
+    actual_effort_changed = pyqtSignal([timedelta])
+    effort_spent_changed = pyqtSignal() 
     
     def __init__(self, name, parent):
         super().__init__(parent)
@@ -63,14 +86,15 @@ class Task(QObject):
         self._children = []
         self._name = name
         self._description = ''
-        self._effort_optimistic = timedelta()
-        self._effort_likely = timedelta()
-        self._effort_pessimistic = timedelta()
-        self._actual_efforts = []
+        self._optimistic_effort = timedelta()
+        self._likely_effort = timedelta()
+        self._pessimistic_effort = timedelta()
+        self._effort_spent = []
         
-        self.effort_optimistic_changed.connect(self._on_effort_input_changed)
-        self.effort_likely_changed.connect(self._on_effort_input_changed)
-        self.effort_pessimistic_changed.connect(self._on_effort_input_changed)
+        self.optimistic_effort_changed.connect(self._on_effort_input_changed)
+        self.likely_effort_changed.connect(self._on_effort_input_changed)
+        self.pessimistic_effort_changed.connect(self._on_effort_input_changed)
+        self.effort_spent_changed.connect(self._on_effort_spent_changed)
         
     @property
     def name(self):
@@ -93,63 +117,65 @@ class Task(QObject):
             self.description_changed.emit(self._description)
             
     @property
-    def effort_optimistic(self):
+    def optimistic_effort(self):
         '''
-        Get optimistic effort
+        Get effort required in optimistic scenario, according to user
         
         Returns
         -------
-        Duration
+        datetime.timedelta
         '''
-        return self._effort_optimistic
+        return self._optimistic_effort
     
-    @effort_optimistic.setter
-    def effort_optimistic(self, value):
-        if self._effort_optimistic != value:
-            self._effort_optimistic = value
-            self.effort_optimistic_changed.emit(self._effort_optimistic)
+    @optimistic_effort.setter
+    def optimistic_effort(self, value):
+        print('optimistic change')
+        if self._optimistic_effort != value:
+            self._optimistic_effort = value
+            self.optimistic_effort_changed.emit(self._optimistic_effort)
             
     @property
-    def effort_likely(self):
-        return self._effort_likely
+    def likely_effort(self):
+        '''
+        Get effort required in the most likely scenario, according to user
+        '''
+        return self._likely_effort
     
-    @effort_likely.setter
-    def effort_likely(self, value):
-        if self._effort_likely != value:
-            self._effort_likely = value
-            self.effort_likely_changed.emit(self._effort_likely)
+    @likely_effort.setter
+    def likely_effort(self, value):
+        if self._likely_effort != value:
+            self._likely_effort = value
+            self.likely_effort_changed.emit(self._likely_effort)
             
     @property
-    def effort_pessimistic(self):
-        return self._effort_pessimistic
+    def pessimistic_effort(self):
+        '''
+        Get effort required in pessimistic scenario, according to user
+        '''
+        return self._pessimistic_effort
     
-    @effort_pessimistic.setter
-    def effort_pessimistic(self, value):
-        if self._effort_pessimistic != value:
-            self._effort_pessimistic = value
-            self.effort_pessimistic_changed.emit(self._effort_pessimistic)
+    @pessimistic_effort.setter
+    def pessimistic_effort(self, value):
+        if self._pessimistic_effort != value:
+            self._pessimistic_effort = value
+            self.pessimistic_effort_changed.emit(self._pessimistic_effort)
             
     def _on_effort_input_changed(self):
         '''When effort optimistic, likely or pessimistic change'''
-        self.effort_estimated_changed.emit(self.effort_estimated)
+        print('predicted')
+        self.predicted_effort_changed.emit(self.predicted_effort)
             
     @property
-    def effort_estimated(self):
-        return (self._effort_optimistic + 4 * self._effort_likely + self._effort_pessimistic)/6
-    
-    @property
-    def actual_efforts(self):
+    def predicted_effort(self):
         '''
-        Get list of intervals during which one has worked on the task
+        Get predicted required effort
         
-        Returns
-        -------
-        tuple([Interval])
+        E.g. based on discrepancies between a user's estimates and actual effort spent on tasks
         '''
-        return tuple(self._actual_efforts)
+        return (self._optimistic_effort + 4 * self._likely_effort + self._pessimistic_effort)/6
     
     @property
-    def effort_actual(self):
+    def actual_effort(self):
         '''
         Get total effort spent on this task
         
@@ -157,20 +183,47 @@ class Task(QObject):
         -----
         Effort of child tasks is excluded, like the other effort_* attributes.
         '''
-        return sum(x.duration for x in self._actual_efforts)
+        return sum((x.duration for x in self._effort_spent), timedelta())
+    
+    @property
+    def effort_spent(self):
+        '''
+        Get list of efforts spent on the task
+        
+        Returns
+        -------
+        tuple([Interval])
+            Time intervals of effort spent on the task 
+        '''
+        return tuple(self._effort_spent)
+    
+    def _on_effort_spent_changed(self):
+        self.actual_effort_changed.emit(self.actual_effort)
+    
+    def insert_effort_spent(self, index, effort):
+        '''
+        Parameters
+        ----------
+        index : int
+        effort : [Interval]
+        '''
+        self._effort_spent[index:index] = effort
+        self.effort_spent_changed.emit()
+        
+    def remove_effort_spent(self, begin, end):
+        del self._effort_spent[begin:end]
+        self.effort_spent_changed.emit()
     
     @property
     def children(self):
         '''
         Get children
         
-        Do not modify directly.
-        
         Returns
         -------
-        [Task]
+        tuple([Task])
         '''
-        return self._children
+        return tuple(self._children)
     
     @property
     def parent(self):

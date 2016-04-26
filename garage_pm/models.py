@@ -19,8 +19,12 @@
 Qt models
 '''
 
-from PyQt5.QtCore import QAbstractItemModel, Qt, QModelIndex
-from garage_pm.domain import Task
+from PyQt5.QtCore import QAbstractItemModel, Qt, QModelIndex, QAbstractTableModel
+from PyQt5.QtWidgets import QMessageBox
+from garage_pm import config
+from garage_pm.domain import Task, Interval
+from datetime import datetime, timedelta
+from chicken_turtle_util.pyqt import block_signals
 
 # About QAbstractItemModel: the root is QModelIndex()
 
@@ -165,4 +169,84 @@ class TaskTreeModel(QAbstractItemModel):
             return index.internalPointer()
         else:
             return None
+        
+class TaskEffortSpentModel(QAbstractTableModel):
+    
+    _header = ['Begin', 'End']
+    
+    def __init__(self, task, parent):
+        super().__init__(parent)
+        self._task = task
+        self._task.effort_spent_changed.connect(self._on_effort_spent_changed)
+        self._ignore_task_events = 0
+        
+    def flags(self, index):
+        return Qt.ItemIsSelectable | Qt.ItemIsEditable | Qt.ItemIsEnabled
+    
+    def rowCount(self, parent=QModelIndex()):
+        if parent.isValid():
+            return 0
+        else:
+            return len(self._task.effort_spent)
+        
+    def columnCount(self, parent=QModelIndex()):
+        return len(self._header)
+    
+    def data(self, index, role=Qt.DisplayRole):
+        if index.isValid():
+            effort = self._task.effort_spent[index.row()]
+            if index.column() == 0:
+                date = effort.begin
+            else:
+                date = effort.end
+            if role == Qt.DisplayRole:
+                return date.strftime(config.date_format)
+            elif role == Qt.EditRole:
+                return date
+        return None
+        
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole and section < len(self._header):
+            return self._header[section]
+        else:
+            return None
+        
+    def setData(self, index, value, role=Qt.EditRole):
+        if role != Qt.EditRole or not index.isValid():
+            return False
+        else:
+            effort = self._task.effort_spent[index.row()]
+            try:
+                if index.column() == 0:
+                    effort.begin = value
+                else:
+                    effort.end = value
+            except ValueError as ex:
+                QMessageBox.warning(None, 'Invalid value', str(ex))
+            self.dataChanged.emit(index, index)
+            return True
+        
+    def removeRows(self, row, count, parent=QModelIndex()):
+        if parent.isValid():
+            return False
+        self.beginRemoveRows(parent, row, row + count - 1)
+        self._ignore_task_events += 1
+        self._task.remove_effort_spent(row, row + count)
+        self._ignore_task_events -= 1
+        self.endRemoveRows()
+        return True
+        
+    def _on_effort_spent_changed(self):
+        if self._ignore_task_events == 0:
+            self.endResetModel()
+        
+    def insertRows(self, row, count, parent=QModelIndex()):
+        if parent.isValid():
+            return False
+        self.beginInsertRows(parent, row, row + count - 1)
+        self._ignore_task_events += 1
+        self._task.insert_effort_spent(row, [Interval(datetime.now(), datetime.now()+timedelta(minutes=1)) for _ in range(count)])
+        self._ignore_task_events -= 1
+        self.endInsertRows()
+        return True
     
