@@ -20,7 +20,7 @@ PM domain classes
 '''
 
 from PyQt5.QtCore import QObject, pyqtSignal
-from datetime import timedelta
+from datetime import datetime, timedelta
 from enum import Enum
 
 class Interval(object):
@@ -77,14 +77,19 @@ class TaskState(Enum):
 
 class Task(QObject):
     
-    name_changed = pyqtSignal([str])
-    description_changed = pyqtSignal([str])
-    optimistic_effort_changed = pyqtSignal([timedelta])
-    likely_effort_changed = pyqtSignal([timedelta])
-    pessimistic_effort_changed = pyqtSignal([timedelta])
-    predicted_effort_changed = pyqtSignal([timedelta])
-    actual_effort_changed = pyqtSignal([timedelta])
-    state_changed = pyqtSignal([TaskState])  # refers to self.state only
+    name_changed = pyqtSignal(str)
+    description_changed = pyqtSignal(str)
+    optimistic_effort_changed = pyqtSignal(timedelta)
+    likely_effort_changed = pyqtSignal(timedelta)
+    pessimistic_effort_changed = pyqtSignal(timedelta)
+    predicted_effort_changed = pyqtSignal(timedelta)
+    actual_effort_changed = pyqtSignal(timedelta)
+    state_changed = pyqtSignal(TaskState)  # refers to self.state only
+    planned_start_changed = pyqtSignal(object)
+    planned_end_changed = pyqtSignal(datetime)
+    predicted_start_changed = pyqtSignal(datetime)
+    predicted_end_changed = pyqtSignal(datetime)
+    state_validity_changed = pyqtSignal([TaskState, str])
     effort_spent_changed = pyqtSignal()
     
     def __init__(self, name, parent):
@@ -98,6 +103,7 @@ class Task(QObject):
         self._pessimistic_effort = timedelta()
         self._effort_spent = []
         self._state = TaskState.planned
+        self._planned_start = None
         
         self.optimistic_effort_changed.connect(self._on_effort_input_changed)
         self.likely_effort_changed.connect(self._on_effort_input_changed)
@@ -136,8 +142,98 @@ class Task(QObject):
     @state.setter
     def state(self, value):
         if self._state != value:
+            reason = self.state_validity(value)
+            if reason:
+                raise ValueError(reason)
             self._state = value
             self.state_changed.emit(self._state)
+            
+    def state_validity(self, state):
+        '''
+        Check whether it is valid to enter the given state
+        
+        Parameters
+        ----------
+        state : TaskState
+        
+        Returns
+        -------
+        str or None
+            Returns ``None`` if the state may be entered, returns a `str`
+            stating the reason otherwise.
+        '''
+        if state == TaskState.finished and not self._effort_spent:
+            return 'Cannot finish a task effortlessly'
+        else:
+            return None
+            
+    @property
+    def planned_start(self):
+        '''
+        Date time at which task is planned to start.
+        
+        Returns
+        -------
+        datetime.datetime or None
+            Returns ``None`` iff one of its paths along the dependency tree to the root has no task with start date set.
+        '''
+        return self._planned_start
+    
+    @planned_start.setter
+    def planned_start(self, value):
+        if self._planned_start != value:
+            self._planned_start = value
+            self.planned_start_changed.emit(self._planned_start)
+            
+    @property
+    def planned_end(self):
+        '''
+        Date time at which task is planned to end.
+        
+        Returns
+        -------
+        datetime.datetime or None
+            Returns ``None`` iff `planned_start` is None
+        '''
+        return None
+    
+    @property
+    def predicted_start(self):
+        '''
+        Date time at which task is predicted to end.
+        
+        When effort has been spent on the task, this is the date time at which
+        the task actually started.
+        
+        Returns
+        -------
+        datetime.datetime or None
+            Returns ``None`` iff no effort has been spent on the task and one of its
+            dependencies' `predicted_end` is None.
+        '''
+        return min((x.begin for x in self._effort_spent), default=None)
+    
+    @property
+    def predicted_end(self):
+        '''
+        Date time at which task is predicted to end.
+        
+        When the task is finished, this is the date time at which the task
+        actually ended.
+        
+        Returns
+        -------
+        datetime.datetime or None
+            Returns ``None`` iff `predicted_start` is None and task is
+            not finished.
+        '''
+        try:
+            if self._state == TaskState.finished:
+                return max((x.end for x in self._effort_spent), default=None)
+            return None
+        except Exception as ex:
+            print(ex)
+            raise ex
             
     @property
     def optimistic_effort(self):
