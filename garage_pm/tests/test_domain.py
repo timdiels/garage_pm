@@ -17,8 +17,9 @@
 
 from PyQt5.QtCore import QObject
 import pytest
-from garage_pm.domain import Task, Interval
+from garage_pm.domain import Task, Interval, EstimateType
 from datetime import datetime, timedelta
+from itertools import product
 
 @pytest.fixture
 def qt_parent():
@@ -87,3 +88,49 @@ class TestTask(object):
             with pytest.raises(ValueError) as ex:
                 task.insert_children(0, [child1])
             assert 'Task cannot become a parent as it already has effort spent on it' in str(ex.value)
+            
+    class TestLeafEffort(object):
+        
+        '''
+        Test effort_estimates in a leaf task
+        '''
+        
+        @pytest.mark.parametrize('estimate_type', EstimateType)
+        def test_default_value(self, task, estimate_type):
+            assert task.effort_estimates[estimate_type] is None
+        
+        @pytest.mark.parametrize('estimate_type, value', product(EstimateType, (-1, 0)))
+        def test_raise_on_set_invalid_value(self, task, estimate_type, value):
+            '''
+            When setting negative or 0 effort, raise
+            '''
+            with pytest.raises(ValueError) as ex:
+                task.effort_estimates[estimate_type] = timedelta(minutes=value)
+            assert 'estimate must be > timedelta(0)' in str(ex.value)
+            
+        @pytest.mark.parametrize('estimate_type', EstimateType)
+        def test_set_none(self, task, estimate_type):
+            '''
+            When setting None, set just fine
+            '''
+            task.effort_estimates[estimate_type] = None
+            
+        def test_predicted(self, task):
+            '''
+            Test simple case for predicted_effort
+            '''
+            assert task.predicted_effort is None
+            task.effort_estimates[EstimateType.optimistic] = timedelta(days=6)
+            assert task.predicted_effort is None
+            task.effort_estimates[EstimateType.likely] = timedelta(hours=12)
+            assert task.predicted_effort is None
+            task.effort_estimates[EstimateType.pessimistic] = timedelta(minutes=18)
+            assert task.predicted_effort == timedelta(days=1, hours=8, minutes=3)
+            
+        def test_actual_effort(self, task, interval):
+            '''
+            Test simple case for actual effort
+            '''
+            assert task.actual_effort == timedelta()
+            task.insert_effort_spent(0, [interval])
+            assert task.actual_effort == interval.duration

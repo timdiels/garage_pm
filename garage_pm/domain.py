@@ -75,12 +75,75 @@ class TaskState(Enum):
     finished = 'Finished'
     cancelled = 'Cancelled'
 
+class EstimateType(Enum):
+    
+    '''
+    Type of estimate that can be made
+    '''
+    
+    optimistic = 'Optimistic'
+    likely = 'Likely'
+    pessimistic = 'Pessimistic'
+    
+class _EffortEstimates(object):
+    
+    '''
+    Effort estimates given by user
+    '''
+    
+    class _Events(QObject):
+        
+        optimistic_effort_changed = pyqtSignal(timedelta)
+        likely_effort_changed = pyqtSignal(timedelta)
+        pessimistic_effort_changed = pyqtSignal(timedelta)
+        
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self._signals = {
+                EstimateType.optimistic: self.optimistic_effort_changed,
+                EstimateType.likely: self.likely_effort_changed,
+                EstimateType.pessimistic: self.pessimistic_effort_changed,
+            }
+            
+        def __getitem__(self, key):
+            return self._signals[key]
+    
+    def __init__(self, qt_parent):
+        self.changed = self._Events(qt_parent)
+        self._estimates = {x: None for x in EstimateType}
+        
+    def __getitem__(self, key):
+        '''
+        Get estimated effort required, according to user
+        
+        Parameters
+        ----------
+        key : Estimate
+            Whether the estimate is optimistic or ...
+            
+        Returns
+        -------
+        datetime.timedelta or None
+            ``None`` iff user did not specify
+        '''
+        return self._estimates[key]
+    
+    def __setitem__(self, key, value):
+        '''
+        Parameters
+        ----------
+        key : Estimate
+        value : datetime.timedelta or None
+        '''
+        if self._estimates[key] != value:
+            if value is not None and value <= timedelta():
+                raise ValueError('Effort estimate must be > timedelta(0)')
+            self._estimates[key] = value
+            self.changed[key].emit(value)
+
 class _TaskEvents(QObject):
     name_changed = pyqtSignal(str)
     description_changed = pyqtSignal(str)
-    optimistic_effort_changed = pyqtSignal(timedelta)
-    likely_effort_changed = pyqtSignal(timedelta)
-    pessimistic_effort_changed = pyqtSignal(timedelta)
     predicted_effort_changed = pyqtSignal(timedelta)
     actual_effort_changed = pyqtSignal(timedelta)
     state_changed = pyqtSignal(TaskState)  # refers to self.state only
@@ -103,22 +166,17 @@ class Task(object):
         parent of self.events, do not confuse it with self.parent, the Task parent
     '''
     
-    def __init__(self, name, parent=None):
+    def __init__(self, name, parent):
         self.events = _TaskEvents(parent)
         self._parent = None
         self._children = []
         self._name = name
         self._description = ''
-        self._optimistic_effort = timedelta()
-        self._likely_effort = timedelta()
-        self._pessimistic_effort = timedelta()
+        self._effort_estimates = _EffortEstimates(parent)
         self._effort_spent = []
         self._state = TaskState.planned
         self._planned_start = None
         
-        self.events.optimistic_effort_changed.connect(self._on_effort_input_changed)
-        self.events.likely_effort_changed.connect(self._on_effort_input_changed)
-        self.events.pessimistic_effort_changed.connect(self._on_effort_input_changed)
         self.events.effort_spent_changed.connect(self._on_effort_spent_changed)
         
     @property
@@ -247,52 +305,11 @@ class Task(object):
             raise ex
             
     @property
-    def optimistic_effort(self):
-        '''
-        Get effort required in optimistic scenario, according to user
-        
-        Returns
-        -------
-        datetime.timedelta
-        '''
-        return self._optimistic_effort
+    def effort_estimates(self):
+        return self._effort_estimates
     
-    @optimistic_effort.setter
-    def optimistic_effort(self, value):
-        print('optimistic change')
-        if self._optimistic_effort != value:
-            self._optimistic_effort = value
-            self.events.optimistic_effort_changed.emit(self._optimistic_effort)
-            
-    @property
-    def likely_effort(self):
-        '''
-        Get effort required in the most likely scenario, according to user
-        '''
-        return self._likely_effort
-    
-    @likely_effort.setter
-    def likely_effort(self, value):
-        if self._likely_effort != value:
-            self._likely_effort = value
-            self.events.likely_effort_changed.emit(self._likely_effort)
-            
-    @property
-    def pessimistic_effort(self):
-        '''
-        Get effort required in pessimistic scenario, according to user
-        '''
-        return self._pessimistic_effort
-    
-    @pessimistic_effort.setter
-    def pessimistic_effort(self, value):
-        if self._pessimistic_effort != value:
-            self._pessimistic_effort = value
-            self.events.pessimistic_effort_changed.emit(self._pessimistic_effort)
-            
-    def _on_effort_input_changed(self):
+    def _on_effort_input_changed(self): #TODO
         '''When effort optimistic, likely or pessimistic change'''
-        print('predicted')
         self.events.predicted_effort_changed.emit(self.predicted_effort)
             
     @property
@@ -302,7 +319,14 @@ class Task(object):
         
         E.g. based on discrepancies between a user's estimates and actual effort spent on tasks
         '''
-        return (self._optimistic_effort + 4 * self._likely_effort + self._pessimistic_effort)/6
+        if any(self._effort_estimates[x] is None for x in EstimateType):
+            return None
+        weights = {
+            EstimateType.optimistic: 1,
+            EstimateType.likely: 4,
+            EstimateType.pessimistic: 1,
+        }
+        return sum((weight * self._effort_estimates[estimate_type] for estimate_type, weight in weights.items()), timedelta()) / sum(weights.values())
     
     @property
     def actual_effort(self):
