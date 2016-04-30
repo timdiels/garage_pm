@@ -75,8 +75,7 @@ class TaskState(Enum):
     finished = 'Finished'
     cancelled = 'Cancelled'
 
-class Task(QObject):
-    
+class _TaskEvents(QObject):
     name_changed = pyqtSignal(str)
     description_changed = pyqtSignal(str)
     optimistic_effort_changed = pyqtSignal(timedelta)
@@ -92,8 +91,20 @@ class Task(QObject):
     state_validity_changed = pyqtSignal([TaskState, str])
     effort_spent_changed = pyqtSignal()
     
-    def __init__(self, name, parent):
+    def __init__(self, parent=None):
         super().__init__(parent)
+        
+class Task(object):
+    
+    '''
+    Parameters
+    ----------
+    parent : QObject
+        parent of self.events, do not confuse it with self.parent, the Task parent
+    '''
+    
+    def __init__(self, name, parent=None):
+        self.events = _TaskEvents(parent)
         self._parent = None
         self._children = []
         self._name = name
@@ -105,10 +116,10 @@ class Task(QObject):
         self._state = TaskState.planned
         self._planned_start = None
         
-        self.optimistic_effort_changed.connect(self._on_effort_input_changed)
-        self.likely_effort_changed.connect(self._on_effort_input_changed)
-        self.pessimistic_effort_changed.connect(self._on_effort_input_changed)
-        self.effort_spent_changed.connect(self._on_effort_spent_changed)
+        self.events.optimistic_effort_changed.connect(self._on_effort_input_changed)
+        self.events.likely_effort_changed.connect(self._on_effort_input_changed)
+        self.events.pessimistic_effort_changed.connect(self._on_effort_input_changed)
+        self.events.effort_spent_changed.connect(self._on_effort_spent_changed)
         
     @property
     def name(self):
@@ -118,7 +129,7 @@ class Task(QObject):
     def name(self, value):
         if self._name != value:
             self._name = value
-            self.name_changed.emit(self._name)
+            self.events.name_changed.emit(self._name)
             
     @property
     def description(self):
@@ -128,7 +139,7 @@ class Task(QObject):
     def description(self, value):
         if self._description != value:
             self._description = value
-            self.description_changed.emit(self._description)
+            self.events.description_changed.emit(self._description)
             
     @property
     def state(self):
@@ -146,7 +157,7 @@ class Task(QObject):
             if reason:
                 raise ValueError(reason)
             self._state = value
-            self.state_changed.emit(self._state)
+            self.events.state_changed.emit(self._state)
             
     def state_validity(self, state):
         '''
@@ -183,7 +194,7 @@ class Task(QObject):
     def planned_start(self, value):
         if self._planned_start != value:
             self._planned_start = value
-            self.planned_start_changed.emit(self._planned_start)
+            self.events.planned_start_changed.emit(self._planned_start)
             
     @property
     def planned_end(self):
@@ -251,7 +262,7 @@ class Task(QObject):
         print('optimistic change')
         if self._optimistic_effort != value:
             self._optimistic_effort = value
-            self.optimistic_effort_changed.emit(self._optimistic_effort)
+            self.events.optimistic_effort_changed.emit(self._optimistic_effort)
             
     @property
     def likely_effort(self):
@@ -264,7 +275,7 @@ class Task(QObject):
     def likely_effort(self, value):
         if self._likely_effort != value:
             self._likely_effort = value
-            self.likely_effort_changed.emit(self._likely_effort)
+            self.events.likely_effort_changed.emit(self._likely_effort)
             
     @property
     def pessimistic_effort(self):
@@ -277,12 +288,12 @@ class Task(QObject):
     def pessimistic_effort(self, value):
         if self._pessimistic_effort != value:
             self._pessimistic_effort = value
-            self.pessimistic_effort_changed.emit(self._pessimistic_effort)
+            self.events.pessimistic_effort_changed.emit(self._pessimistic_effort)
             
     def _on_effort_input_changed(self):
         '''When effort optimistic, likely or pessimistic change'''
         print('predicted')
-        self.predicted_effort_changed.emit(self.predicted_effort)
+        self.events.predicted_effort_changed.emit(self.predicted_effort)
             
     @property
     def predicted_effort(self):
@@ -317,7 +328,7 @@ class Task(QObject):
         return tuple(self._effort_spent)
     
     def _on_effort_spent_changed(self):
-        self.actual_effort_changed.emit(self.actual_effort)
+        self.events.actual_effort_changed.emit(self.actual_effort)
     
     def insert_effort_spent(self, index, effort):
         '''
@@ -327,11 +338,11 @@ class Task(QObject):
         effort : [Interval]
         '''
         self._effort_spent[index:index] = effort
-        self.effort_spent_changed.emit()
+        self.events.effort_spent_changed.emit()
         
     def remove_effort_spent(self, begin, end):
         del self._effort_spent[begin:end]
-        self.effort_spent_changed.emit()
+        self.events.effort_spent_changed.emit()
     
     @property
     def children(self):
@@ -344,6 +355,43 @@ class Task(QObject):
         '''
         return tuple(self._children)
     
+    def insert_children(self, index, children):
+        if set(children) & set(self._children):
+            raise ValueError("Cannot add tasks as child when they're already a child of this task")
+        if any(x.parent for x in children):
+            raise ValueError("May only make orphans into children of a task")
+        reason = self.is_child_insertion_disallowed
+        if reason:
+            raise ValueError(reason)
+        
+        self._children[index:index] = children
+        for child in children:
+            child._parent = self
+            
+    @property
+    def is_child_insertion_disallowed(self):
+        '''
+        Get whether task could be a valid parent
+        
+        Returns
+        -------
+        str or None
+            if cannot be a parent, user-friendly reason, else None
+        '''
+        if self._effort_spent:
+            return 'Task cannot become a parent as it already has effort spent on it'
+        else:
+            return None
+        
+    def remove_children(self, begin, end):
+        for child in self._children[begin:end]:
+            child._parent = None
+        del self._children[begin:end]
+        
+    @property
+    def is_leaf(self):
+        return bool(self._children)
+        
     @property
     def parent(self):
         return self._parent
@@ -358,13 +406,3 @@ class Task(QObject):
     def __repr__(self):
         return 'Task({!r})'.format(self.name)
     
-    def insert_children(self, index, children):
-        self._children[index:index] = children
-        for child in children:
-            child._parent = self
-            
-    def remove_children(self, begin, end):
-        for child in self._children[begin:end]:
-            child._parent = None
-        del self._children[begin:end]
-        
