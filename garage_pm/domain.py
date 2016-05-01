@@ -22,6 +22,7 @@ PM domain classes
 from PyQt5.QtCore import QObject, pyqtSignal
 from datetime import datetime, timedelta
 from enum import Enum
+from itertools import chain
 
 class Interval(object):
     
@@ -189,6 +190,7 @@ class Task(object):
         self._effort_spent = []
         self._state = TaskState.planned
         self._planned_start = None
+        self._dependencies = set()
         
         self.events.effort_spent_changed.connect(self._on_effort_spent_changed)
         
@@ -465,6 +467,46 @@ class Task(object):
             yield child
             for grandchild in child.descendants:
                 yield grandchild
+    
+    @property
+    def dependencies(self):
+        '''
+        Get additional direct dependencies
+        
+        Returns
+        -------
+        iterable(Task)
+            tasks that must be finished in addition to the parent task before this task can start
+        '''
+        return iter(self._dependencies)
+    
+    def add_dependency(self, task):
+        if task in self.ancestors:
+            raise ValueError('Task may not depend on an ancestor')
+        if task in self.descendants:
+            raise ValueError('Task may not depend on a descendant')
+        for dependency in self._dependencies:
+            if task in dependency.descendants:
+                return
+        self._dependencies -= {x for x in self._dependencies if x in task.descendants} 
+        self._dependencies.add(task)
+        
+    def remove_dependency(self, task):
+        self._dependencies.remove(task)
+    
+    def start_dependencies(self):
+        '''
+        Get tasks that must be finished before this task can start
+        
+        Returns
+        -------
+        iterable(Task)
+            returns the direct dependencies only, i.e. not dependencies of dependencies.
+        '''
+        if self._parent:
+            return chain(self._dependencies, self._parent)
+        else:
+            return iter(self._dependencies) 
         
     def __repr__(self):
         return 'Task({!r})'.format(self.name)

@@ -282,23 +282,75 @@ class TestTask(object):
         assert tuple(root_task.children[0].children[0].descendants) == ()
         assert tuple(root_task.children[1].descendants) == ()
     
+    class TestDependencies(object):
+        
+        def test_happy_days(self, root_task):
+            assert tuple(root_task.dependencies) == ()
+            task11 = root_task.children[0]
+            task12 = root_task.children[1]
+            task11.add_dependency(task12)
+            assert tuple(task11.dependencies) == (task12,)
+            assert tuple(task12.dependencies) == ()
+            
+            task11.remove_dependency(task12)
+            assert tuple(task11.dependencies) == ()
+            
+        def test_add_ancestor_or_descendant_raises(self, root_task):
+            '''
+            When adding ancestor or descendant as dependency, raise
+            ''' 
+            task11 = root_task.children[0]
+            task111 = task11.children[0]
+            for ancestor, task in ((root_task, task11), (root_task, task111)):
+                with pytest.raises(ValueError) as ex:
+                    task.add_dependency(ancestor)
+                assert 'Task may not depend on an ancestor' in str(ex.value)
+                
+                with pytest.raises(ValueError) as ex:
+                    ancestor.add_dependency(task)
+                assert 'Task may not depend on a descendant' in str(ex.value)
+                
+        def test_add_removes_dep_children(self, root_task):
+            '''
+            When adding a task whose descendant is already depended on, remove that
+            descendant from the dependencies
+            '''
+            root_task.children[1].add_dependency(root_task.children[0].children[0])
+            root_task.children[1].add_dependency(root_task.children[0])
+            assert tuple(root_task.children[1].dependencies) == (root_task.children[0],)
+            
+        def test_ignore_readd(self, root_task):
+            '''
+            When adding the same task twice, ignore silently
+            '''
+            root_task.children[0].add_dependency(root_task.children[1])
+            root_task.children[0].add_dependency(root_task.children[1])
+            assert tuple(root_task.children[0].dependencies) == (root_task.children[1],)
+            
+        def test_ignore_add_dep_descendant(self, root_task):
+            '''
+            When adding descendant of a task we already depend on, ignore it
+            '''
+            root_task.children[1].add_dependency(root_task.children[0])
+            root_task.children[1].add_dependency(root_task.children[0].children[0])
+            assert tuple(root_task.children[1].dependencies) == (root_task.children[0],)
+            
+        # Note: adding a dependency of a dependency is not necessarily ignored
+        # Note: adding dependencies of the parent aren't necessarily ignored either
+            
 #     class TestStartDependencies(object):
-#         
+#          
 #         def test_default(self, root_task):
 #             '''
 #             '''
-#             root_task.descendants
+#             task11 = root_task.children[0]
+#             task12 = root_task.children[2]
+#             task11.add_dependency(0, [task12])
 #             assert root_task.start_dependencies == set()
-#             assert
-#             task.insert_children(0, [child1, child2])
-            # start_deps = set(_deps #not _start_deps) + parent.start_deps if parent. "Tasks that must be finished before this task can start"
+#             assert task11.start_dependencies == {task12}
+#             assert task11.children[0].start_dependencies == {task12}
+#             assert task12.start_dependencies == set()
             
-            # May not add an ancestor. May not add a descendant. When adding a task
-            # while depending on a child of that task, silently remove that child
-            # from the dep list. When adding a task already in it, ignore. Do your
-            # checks on the current list, i.e. ignore the parent deps that
-                
-                
                 
                 
                 
