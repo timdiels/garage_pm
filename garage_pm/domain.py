@@ -507,7 +507,19 @@ class Task(object):
         if self._parent:
             return chain(self._dependencies, self._parent.start_dependencies)
         else:
-            return iter(self._dependencies) 
+            return iter(self._dependencies)
+        
+    @property
+    def end_dependencies(self):
+        '''
+        Get tasks that must be finished before this task can start
+        
+        Yields
+        -------
+        Task
+            returns the direct dependencies only, i.e. not dependencies of dependencies.
+        '''
+        return chain(self.start_dependencies, (x for x in self.children if x.is_active))
         
     def __repr__(self):
         return 'Task({!r})'.format(self.name)

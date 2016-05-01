@@ -29,7 +29,11 @@ class TestTask(object):
     
     @pytest.fixture
     def task(self, qt_object):
-        return Task('name', qt_object)
+        return Task('task1', qt_object)
+    
+    @pytest.fixture
+    def task2(self, qt_object):
+        return Task('task2', qt_object)
         
     @pytest.fixture
     def child1(self, task, qt_object):
@@ -354,6 +358,52 @@ class TestTask(object):
         assert tuple(task11.children[0].start_dependencies) == (task12,)
         assert tuple(task12.start_dependencies) == ()
             
-                
+    def test_end_dependencies(self, root_task, task, task2):
+        '''
+        end_deps = start dependencies + active children
+        '''
+        task11 = root_task.children[0]
+        task111 = task11.children[0]
+        task12 = root_task.children[1]
+        
+        # include active children, but not their deps (unless those are our active children)
+        task111.add_dependency(task12)
+        assert set(task111.end_dependencies) == {task12}
+        assert set(task11.end_dependencies) == {task111}
+        assert set(task12.end_dependencies) == set()
+        assert set(root_task.end_dependencies) == {task11, task12}
+        
+        # leaf tasks always have the same start and end deps
+        assert set(task111.start_dependencies) == set(task111.end_dependencies)
+        assert set(task12.start_dependencies) == set(task12.end_dependencies)
+        
+        # also include regular dependencies
+        def assert_():
+            assert set(root_task.start_dependencies) == set()
+            assert set(task11.start_dependencies) == {task}
+            assert set(task111.start_dependencies) == {task, task12}
+            assert set(task111.end_dependencies) == {task, task12}
+            assert set(task11.end_dependencies) == {task, task111}
+            assert set(task12.start_dependencies) == set()
+            assert set(task12.end_dependencies) == set()
+            assert set(root_task.end_dependencies) == {task11, task12}
+        task11.add_dependency(task)
+        assert_()
+        
+        # and ignore inactive children
+        task11.insert_children(0, [task2])
+        task2.state = TaskState.cancelled
+        assert_()
+        
+        
+    def test_direct_non_active(self, task, task2):
+        '''
+        Direct dependencies to a non-active task do show up
+        '''
+        task.add_dependency(task2)
+        task2.state = TaskState.cancelled
+        assert list(task.dependencies) == [task2]
+        assert list(task.start_dependencies) == [task2]
+        assert list(task.end_dependencies) == [task2] 
                 
                 
