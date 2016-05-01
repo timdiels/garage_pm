@@ -455,9 +455,16 @@ class Task(object):
     @property
     def ancestors(self):
         if self._parent:
-            return self._parent.ancestors + [self._parent]
-        else:
-            return []
+            for ancestor in self._parent.ancestors:
+                yield ancestor
+            yield self._parent
+            
+    @property
+    def descendants(self):
+        for child in self._children:
+            yield child
+            for grandchild in child.descendants:
+                yield grandchild
         
     def __repr__(self):
         return 'Task({!r})'.format(self.name)

@@ -22,26 +22,26 @@ from datetime import datetime, timedelta
 from itertools import product
 
 @pytest.fixture
-def qt_parent():
+def qt_object():
     return QObject()
 
 class TestTask(object):
     
     @pytest.fixture
-    def task(self, qt_parent):
-        return Task('name', qt_parent)
+    def task(self, qt_object):
+        return Task('name', qt_object)
         
     @pytest.fixture
-    def child1(self, task, qt_parent):
-        return Task('child1', qt_parent)
+    def child1(self, task, qt_object):
+        return Task('child1', qt_object)
         
     @pytest.fixture
-    def child2(self, task, qt_parent):
-        return Task('child2', qt_parent)
+    def child2(self, task, qt_object):
+        return Task('child2', qt_object)
     
     @pytest.fixture
-    def child3(self, task, qt_parent):
-        return Task('child3', qt_parent)
+    def child3(self, task, qt_object):
+        return Task('child3', qt_object)
     
     @pytest.fixture
     def interval1(self):
@@ -56,6 +56,16 @@ class TestTask(object):
     def interval3(self, interval2):
         delta = timedelta(minutes=1)
         return Interval(interval2.begin + delta, interval2.end + delta)
+    
+    @pytest.fixture
+    def root_task(self, qt_object):
+        t1 = Task('1', qt_object)
+        t11 = Task('1.1', qt_object)
+        t111 = Task('1.1.1', qt_object)
+        t12 = Task('1.2', qt_object)
+        t1.insert_children(0, [t11, t12])
+        t11.insert_children(0, [t111])
+        return t1
         
     class TestChildren(object):
         
@@ -215,8 +225,8 @@ class TestTask(object):
     class TestBranchEffort(object):
         
         @pytest.fixture(params=(TaskState.not_planned, TaskState.cancelled))
-        def branch(self, request, qt_parent, child1, child2, child3, interval1, interval2, interval3):
-            branch = Task('branch', qt_parent)
+        def branch(self, request, qt_object, child1, child2, child3, interval1, interval2, interval3):
+            branch = Task('branch', qt_object)
             branch.insert_children(0, [child1, child2, child3])
             child1.insert_effort_spent(0, [interval1])
             child2.insert_effort_spent(0, [interval2])
@@ -259,3 +269,36 @@ class TestTask(object):
             branch.children[-1].effort_estimates[EstimateType.likely] = None
             assert branch.predicted_effort is not None
         
+    def test_ancestors(self, root_task):
+        assert tuple(root_task.ancestors) == ()
+        for child in root_task.children:
+            assert tuple(child.ancestors) == (root_task,)
+            for grandchild in child.children:
+                assert tuple(grandchild.ancestors) == (root_task, child)
+    
+    def test_descendants(self, root_task):
+        assert tuple(root_task.descendants) == (root_task.children[0], root_task.children[0].children[0], root_task.children[1])
+        assert tuple(root_task.children[0].descendants) == (root_task.children[0].children[0],)
+        assert tuple(root_task.children[0].children[0].descendants) == ()
+        assert tuple(root_task.children[1].descendants) == ()
+    
+#     class TestStartDependencies(object):
+#         
+#         def test_default(self, root_task):
+#             '''
+#             '''
+#             root_task.descendants
+#             assert root_task.start_dependencies == set()
+#             assert
+#             task.insert_children(0, [child1, child2])
+            # start_deps = set(_deps #not _start_deps) + parent.start_deps if parent. "Tasks that must be finished before this task can start"
+            
+            # May not add an ancestor. May not add a descendant. When adding a task
+            # while depending on a child of that task, silently remove that child
+            # from the dep list. When adding a task already in it, ignore. Do your
+            # checks on the current list, i.e. ignore the parent deps that
+                
+                
+                
+                
+                
