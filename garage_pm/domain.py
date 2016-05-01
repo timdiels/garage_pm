@@ -71,6 +71,7 @@ class Interval(object):
             return self.begin < other.begin
 
 class TaskState(Enum):
+    not_planned = 'Not planned'
     planned = 'Planned'
     finished = 'Finished'
     cancelled = 'Cancelled'
@@ -166,6 +167,8 @@ class Task(object):
         parent of self.events, do not confuse it with self.parent, the Task parent
     '''
     
+    _task_state_priorities = (TaskState.planned, TaskState.not_planned, TaskState.cancelled, TaskState.finished)
+    
     def __init__(self, name, parent):
         self.events = _TaskEvents(parent)
         self._parent = None
@@ -206,32 +209,41 @@ class Task(object):
         -------
         TaskState
         '''
-        return self._state
+        if self.is_leaf:
+            return self._state
+        else:
+            child_states = set(child.state for child in self.children)
+            for state in self._task_state_priorities:
+                if state in child_states:
+                    return state
+            assert False
     
     @state.setter
     def state(self, value):
+        reason = self.validate_set_state(value)
+        if reason:
+            raise ValueError(reason)
         if self._state != value:
-            reason = self.state_validity(value)
-            if reason:
-                raise ValueError(reason)
             self._state = value
             self.events.state_changed.emit(self._state)
             
-    def state_validity(self, state):
+    def validate_set_state(self, state):
         '''
-        Check whether it is valid to enter the given state
+        Get whether may set given state
         
         Parameters
         ----------
         state : TaskState
-        
+
         Returns
         -------
         str or None
-            Returns ``None`` if the state may be entered, returns a `str`
-            stating the reason otherwise.
+            ``None`` if the state may be entered, else the reason why it may not
+            be entered
         '''
-        if state == TaskState.finished and not self._effort_spent:
+        if not self.is_leaf:
+            return 'May not set state on branch task'
+        elif state == TaskState.finished and self.actual_effort == timedelta():
             return 'Cannot finish a task effortlessly'
         else:
             return None
@@ -257,7 +269,7 @@ class Task(object):
     @property
     def planned_end(self):
         '''
-        Date time at which task is planned to end.
+        Date time at which task is planned to end.state_validity
         
         Returns
         -------
@@ -393,7 +405,7 @@ class Task(object):
             child._parent = self
             
     @property
-    def is_child_insertion_disallowed(self):
+    def is_child_insertion_disallowed(self): #TODO rename validate_insert_children
         '''
         Get whether task could be a valid parent
         
@@ -414,7 +426,10 @@ class Task(object):
         
     @property
     def is_leaf(self):
-        return bool(self._children)
+        '''
+        Get whether is leaf (True) or branch (False)
+        '''
+        return not self._children
         
     @property
     def parent(self):

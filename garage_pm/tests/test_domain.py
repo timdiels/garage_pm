@@ -17,7 +17,7 @@
 
 from PyQt5.QtCore import QObject
 import pytest
-from garage_pm.domain import Task, Interval, EstimateType
+from garage_pm.domain import Task, Interval, EstimateType, TaskState
 from datetime import datetime, timedelta
 from itertools import product
 
@@ -134,3 +134,56 @@ class TestTask(object):
             assert task.actual_effort == timedelta()
             task.insert_effort_spent(0, [interval])
             assert task.actual_effort == interval.duration
+
+    def test_is_leaf(self, task, child1):
+        assert task.is_leaf
+        task.insert_children(0, [child1])
+        assert not task.is_leaf
+        
+    class TestState(object):
+        
+        def test_default(self, task):
+            assert task.state == TaskState.planned
+            for state in TaskState:
+                # may enter any state except finished by default
+                if state != TaskState.finished:
+                    task.state = state
+                    assert task.state == state
+            
+        def test_cannot_set_leaf_finished(self, task, interval):
+            '''
+            Cannot finish leaf when actual_effort==0
+            '''
+            with pytest.raises(ValueError) as ex:
+                task.state = TaskState.finished
+            assert 'Cannot finish a task effortlessly' in str(ex.value)
+            
+            # but can finish with effort
+            task.insert_effort_spent(0, [interval])
+            task.state = TaskState.finished
+            
+        def test_branch(self, task, child1, child2, interval):
+            '''
+            Branch tasks take upon the highest priority state of their children
+            
+            Not to be confused with task priorities (if we decided to implement that)
+            
+            priorities: planned > not planned > cancelled > finished
+            '''
+            task.insert_children(0, [child1, child2])
+            child1.insert_effort_spent(0, [interval])
+            child2.insert_effort_spent(0, [interval])
+            
+            # A branch task may not have its state set
+            for state in TaskState: 
+                with pytest.raises(ValueError) as ex:
+                    task.state = state
+                assert 'May not set state on branch task' in str(ex.value)
+
+            # Parent state is that of the highest 'priority' child state
+            priorities = Task._task_state_priorities
+            for i in range(len(priorities)):
+                child1.state = priorities[i]
+                for state in priorities[i:]:
+                    child2.state = state
+                    assert task.state == priorities[i]
