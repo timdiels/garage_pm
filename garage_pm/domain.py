@@ -247,6 +247,10 @@ class Task(object):
             return 'Cannot finish a task effortlessly'
         else:
             return None
+        
+    @property
+    def is_active(self):
+        return self.state in (TaskState.planned, TaskState.finished)
             
     @property
     def planned_start(self):

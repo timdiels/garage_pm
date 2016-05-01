@@ -187,3 +187,13 @@ class TestTask(object):
                 for state in priorities[i:]:
                     child2.state = state
                     assert task.state == priorities[i]
+                    
+    def test_is_active(self, task, interval):
+        task.insert_effort_spent(0, [interval])
+        assert task.is_active
+        task.state = TaskState.finished
+        assert task.is_active
+        task.state = TaskState.cancelled
+        assert not task.is_active
+        task.state = TaskState.not_planned
+        assert not task.is_active
