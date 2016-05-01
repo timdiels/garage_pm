@@ -94,9 +94,9 @@ class _EffortEstimates(object):
     
     class _Events(QObject):
         
-        optimistic_effort_changed = pyqtSignal(timedelta)
-        likely_effort_changed = pyqtSignal(timedelta)
-        pessimistic_effort_changed = pyqtSignal(timedelta)
+        optimistic_effort_changed = pyqtSignal(object)
+        likely_effort_changed = pyqtSignal(object)
+        pessimistic_effort_changed = pyqtSignal(object)
         
         def __init__(self, parent=None):
             super().__init__(parent)
@@ -109,8 +109,9 @@ class _EffortEstimates(object):
         def __getitem__(self, key):
             return self._signals[key]
     
-    def __init__(self, qt_parent):
+    def __init__(self, task, qt_parent):
         self.changed = self._Events(qt_parent)
+        self._task = task
         self._estimates = {x: None for x in EstimateType}
         
     def __getitem__(self, key):
@@ -127,7 +128,14 @@ class _EffortEstimates(object):
         datetime.timedelta or None
             ``None`` iff user did not specify
         '''
-        return self._estimates[key]
+        if self._task.is_leaf:
+            return self._estimates[key]
+        else:
+            estimates = [x.effort_estimates[key] for x in self._task.children if x.is_active]
+            if any(x is None for x in estimates):
+                return None
+            else:
+                return sum(estimates, timedelta())
     
     def __setitem__(self, key, value):
         '''
@@ -136,9 +144,11 @@ class _EffortEstimates(object):
         key : Estimate
         value : datetime.timedelta or None
         '''
+        if value is not None and value <= timedelta():
+            raise ValueError('Effort estimate must be > timedelta(0)')
+        if not self._task.is_leaf:
+            raise ValueError('May not set effort estimate on branch task')
         if self._estimates[key] != value:
-            if value is not None and value <= timedelta():
-                raise ValueError('Effort estimate must be > timedelta(0)')
             self._estimates[key] = value
             self.changed[key].emit(value)
 
@@ -175,7 +185,7 @@ class Task(object):
         self._children = []
         self._name = name
         self._description = ''
-        self._effort_estimates = _EffortEstimates(parent)
+        self._effort_estimates = _EffortEstimates(self, parent)
         self._effort_spent = []
         self._state = TaskState.planned
         self._planned_start = None
@@ -353,7 +363,10 @@ class Task(object):
         -----
         Effort of child tasks is excluded, like the other effort_* attributes.
         '''
-        return sum((x.duration for x in self._effort_spent), timedelta())
+        if self.is_leaf:
+            return sum((x.duration for x in self._effort_spent), timedelta())
+        else:
+            return sum((x.actual_effort for x in self.children if x.is_active), timedelta())
     
     @property
     def effort_spent(self):
