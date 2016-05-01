@@ -473,9 +473,9 @@ class Task(object):
         '''
         Get additional direct dependencies
         
-        Returns
-        -------
-        iterable(Task)
+        Yields
+        ------
+        Task
             tasks that must be finished in addition to the parent task before this task can start
         '''
         return iter(self._dependencies)
@@ -494,17 +494,18 @@ class Task(object):
     def remove_dependency(self, task):
         self._dependencies.remove(task)
     
+    @property
     def start_dependencies(self):
         '''
         Get tasks that must be finished before this task can start
         
-        Returns
+        Yields
         -------
-        iterable(Task)
+        Task
             returns the direct dependencies only, i.e. not dependencies of dependencies.
         '''
         if self._parent:
-            return chain(self._dependencies, self._parent)
+            return chain(self._dependencies, self._parent.start_dependencies)
         else:
             return iter(self._dependencies) 
         

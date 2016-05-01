@@ -319,6 +319,10 @@ class TestTask(object):
             root_task.children[1].add_dependency(root_task.children[0])
             assert tuple(root_task.children[1].dependencies) == (root_task.children[0],)
             
+            # when removing, like adding, it's like removing an entire task subtree
+            root_task.children[1].remove_dependency(root_task.children[0])
+            assert tuple(root_task.children[1].dependencies) == ()
+            
         def test_ignore_readd(self, root_task):
             '''
             When adding the same task twice, ignore silently
@@ -338,18 +342,17 @@ class TestTask(object):
         # Note: adding a dependency of a dependency is not necessarily ignored
         # Note: adding dependencies of the parent aren't necessarily ignored either
             
-#     class TestStartDependencies(object):
-#          
-#         def test_default(self, root_task):
-#             '''
-#             '''
-#             task11 = root_task.children[0]
-#             task12 = root_task.children[2]
-#             task11.add_dependency(0, [task12])
-#             assert root_task.start_dependencies == set()
-#             assert task11.start_dependencies == {task12}
-#             assert task11.children[0].start_dependencies == {task12}
-#             assert task12.start_dependencies == set()
+    def test_start_dependencies(self, root_task):
+        '''
+        Like dependencies, but includes (start) dependencies of the parent
+        '''
+        task11 = root_task.children[0]
+        task12 = root_task.children[1]
+        task11.add_dependency(task12)
+        assert tuple(root_task.start_dependencies) == ()
+        assert tuple(task11.start_dependencies) == (task12,)
+        assert tuple(task11.children[0].start_dependencies) == (task12,)
+        assert tuple(task12.start_dependencies) == ()
             
                 
                 
