@@ -159,10 +159,6 @@ class _TaskEvents(QObject):
     predicted_effort_changed = pyqtSignal(timedelta)
     actual_effort_changed = pyqtSignal(timedelta)
     state_changed = pyqtSignal(TaskState)  # refers to self.state only
-    planned_start_changed = pyqtSignal(object)
-    planned_end_changed = pyqtSignal(datetime)
-    predicted_start_changed = pyqtSignal(datetime)
-    predicted_end_changed = pyqtSignal(datetime)
     state_validity_changed = pyqtSignal([TaskState, str])
     effort_spent_changed = pyqtSignal()
     
@@ -263,74 +259,6 @@ class Task(object):
     @property
     def is_active(self):
         return self.state in (TaskState.planned, TaskState.finished)
-            
-    @property
-    def planned_start(self):
-        '''
-        Date time at which task is planned to start.
-        
-        Returns
-        -------
-        datetime.datetime or None
-            Returns ``None`` iff one of its paths along the dependency tree to the root has no task with start date set.
-        '''
-        return self._planned_start
-    
-    @planned_start.setter
-    def planned_start(self, value):
-        if self._planned_start != value:
-            self._planned_start = value
-            self.events.planned_start_changed.emit(self._planned_start)
-            
-    @property
-    def planned_end(self):
-        '''
-        Date time at which task is planned to end.state_validity
-        
-        Returns
-        -------
-        datetime.datetime or None
-            Returns ``None`` iff `planned_start` is None
-        '''
-        return None
-    
-    @property
-    def predicted_start(self):
-        '''
-        Date time at which task is predicted to start.
-        
-        When effort has been spent on the task, this is the date time at which
-        the task actually started.
-        
-        Returns
-        -------
-        datetime.datetime or None
-            Returns ``None`` iff no effort has been spent on the task and one of its
-            dependencies' `predicted_end` is None.
-        '''
-        return min((x.begin for x in self._effort_spent), default=None)
-    
-    @property
-    def predicted_end(self):
-        '''
-        Date time at which task is predicted to end.
-        
-        When the task is finished, this is the date time at which the task
-        actually ended.
-        
-        Returns
-        -------
-        datetime.datetime or None
-            Returns ``None`` iff `predicted_start` is None and task is
-            not finished.
-        '''
-        try:
-            if self._state == TaskState.finished:
-                return max((x.end for x in self._effort_spent), default=None)
-            return None
-        except Exception as ex:
-            print(ex)
-            raise ex
             
     @property
     def effort_estimates(self):
