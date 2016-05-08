@@ -297,7 +297,7 @@ class Task(object):
     @property
     def predicted_start(self):
         '''
-        Date time at which task is predicted to end.
+        Date time at which task is predicted to start.
         
         When effort has been spent on the task, this is the date time at which
         the task actually started.

@@ -26,7 +26,7 @@ def connect(signal, slot, connect_=True):
     else:
         signal.disconnect(slot)
 
-def EnumRadioController(Enum):    
+def EnumRadioController(Enum):
     '''
     Bi-directional bind an enum to a set of QRadioButton
     

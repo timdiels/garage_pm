@@ -406,4 +406,101 @@ class TestTask(object):
         assert list(task.start_dependencies) == [task2]
         assert list(task.end_dependencies) == [task2] 
                 
-                
+# Note: in implementing, you want mixins to keep things separate in their own
+# modules, it gets pretty complex already. You want to be able to think of
+# things in isolation, i.e. in modules (not python modules).
+
+# TODO
+
+# Make deps, children, state combos solid
+#
+#
+# TODO cannot finish if an end dep is planned (active and not finished).
+# TODO cannot add deps on finished task.
+# TODO cannot change estimates on finished task.
+#
+# TODO cannot unfinish (e.g. branch tasks do) if a finished task depends on it (indirectly).
+#
+# What happens when tasks are reparented? What if adding a new task to a
+# finished branch? Just more events that could affect the state of a branch,
+# possibly causing a raise.
+#
+# Check for it up front using a dep graph, and raise? Or add a rollback system.
+# Or simply allow breaking the domain. Checking in 3 places should do the trick,
+# so far. Those that raise are insert_children and set-state. For the check the
+# dependency should be found, which may be indirect, so maybe we do want to
+# construct an actual dep graph with networkx
+#
+# UI will ask user whether to remove the offending deps. Removing the deps would rewrite history (planned start) though...
+
+# Time tracking: only a single task can be worked on at a time. All tasks should
+# have access to a Context with an attrib for the currently tracked task, along
+# with time at which the tracking started; this should be included by
+# actual_effort as an additional effort-spent Interval(started, now). For now,
+# do not set a timer to send out actual-effort changed events, just omit those
+# events in this case.
+#
+# It shouldn't be set directly on the context, but on a Time tracking component,
+# which is responsible for adding the effort spent interval when stopping.
+
+# Instead of planned start/end on tasks, an optional deadline. No slack time yet.
+
+# Take into actual effort: schedule a max duration of predicted_effort -
+# actual_effort; if negative, schedule 30 min. Or rather, let predicted_effort
+# always return those 30 additional min if original prediction was wrong.
+
+# simple schedule(tasks_to_finish, work_intervals) -> {Task => [Interval]} func, does not include dependencies, does not reorder, schedules them simply
+
+# schedule(tasks_to_finish, work_intervals) -> {Task => [Interval]}, produce intervals to spend effort, (can be multiple) for
+# each task (e.g. a dict). context.schedules {name :: str => Schedule}
+#
+# Should recalculate every x time (not in some cases though, e.g. when not even
+# in a work interval, or when already working on it, unless exceeding planned
+# time). Qt prolly has a timer.
+#
+# Schedules have a unique name. The work hours ical's task names reference a
+# schedule name in order to assign time to them.
+#
+# A task may not be part of multiple schedules, that would schedule it twice in
+# the global calendar, thus giving a more pessimist view. Be careful with
+# dependencies, a task entails more that it and its children, it's all the end
+# dependencies and their indirect dependencies. Any change leading to a task
+# being part of multiple schedules (also indirectly) must be disallowed. These
+# tasks practically always are separate projects, but we won't make the
+# distinction.
+# -> context has schedules, make sure not to overlap tasks in schedules there 
+#
+#
+# Making parallel tasks sequential when scheduling:
+#
+# Order should be deterministic, e.g. serialise by task id
+# serialise them by their task id: the task id could be an id assigned to each
+# task, a number, simply something unique that doesn't change as you change the
+# task
+#
+# First order tasks by slack. Slack is relative to the deadline though (so don't
+# add a Task.slack). First pick the deadline with the least slack if we were to
+# direct all our effort to it. Then direct all effort to that deadline, ordering
+# by slack relative to that deadline.
+# (low prio, skip until other things are done)
+#
+# As the highest ordering override, allow overriding the default order on tasks
+# with no dependency through drag and drop in a list or, ideally, calendar view.
+# Implement as setting a fake start dependency on the task it should appear
+# directly after, and adding a start dependency to it on the task that should
+# come after it.
+# As changes are made to tasks, this should be kept in order. The idea is to
+# keep the task in between 2 other tasks, though some events perhaps may be
+# responded to by forgetting this ordering override
+#(low priority, skip until other is done, workaround by letting user add dependencies)
+
+# A deadline overview, along with slack (like the milestone overview we planned).
+
+# Milestones: describe what it is, the deliverable. Add/rm tasks to it that
+# contribute to it. Optionally set a deadline for it, + show slack time. Also
+# show the predicted delivery date on it.
+
+
+
+
+
