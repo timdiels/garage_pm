@@ -17,6 +17,7 @@
 
 from PyQt5.QtCore import QObject, pyqtSignal
 from datetime import timedelta
+from garage_pm.exceptions import IllegalOperationError
 from ._common import EstimateType, PlanningState
 from ._leaf_task_state import LeafTaskState
     
@@ -43,8 +44,9 @@ class _EffortEstimates(object):
         def __getitem__(self, key):
             return self._signals[key]
     
-    def __init__(self, qt_parent):
+    def __init__(self, task, qt_parent):
         self.changed = self._Events(qt_parent)
+        self._task = task
         self._estimates = {x: None for x in EstimateType}
         
     def __getitem__(self, key):
@@ -70,6 +72,8 @@ class _EffortEstimates(object):
         key : Estimate
         value : datetime.timedelta or None
         '''
+        if self._task.planning_state == PlanningState.finished:
+            raise IllegalOperationError('Cannot edit effort estimates on finished task')
         if value is not None and value <= timedelta():
             raise ValueError('Effort estimate must be > timedelta(0)')
         if self._estimates[key] != value:
@@ -88,7 +92,7 @@ class EffortTaskState(LeafTaskState):
     
     def __init__(self, common_data):
         super().__init__(common_data)
-        self._effort_estimates = _EffortEstimates(self._qt_parent)
+        self._effort_estimates = _EffortEstimates(self._task, self._qt_parent)
         self._effort_spent = []
         self._events = _EffortTaskStateEvents(self._qt_parent)
         
@@ -164,16 +168,20 @@ class EffortTaskState(LeafTaskState):
         index : int
         effort : [Interval]
         '''
+        if self.planning_state == PlanningState.finished:
+            raise IllegalOperationError('Cannot insert effort into finished task')
         self._effort_spent[index:index] = effort
         self.events.effort_spent_changed.emit()
         
     def remove_effort_spent(self, begin, end):
+        if self.planning_state == PlanningState.finished:
+            raise IllegalOperationError('Cannot remove effort from finished task')
         del self._effort_spent[begin:end]
         self.events.effort_spent_changed.emit()
         
     def validate_set_planning_state(self, state):
         if state == PlanningState.finished and self.actual_effort == timedelta():
-            return 'Cannot finish a task effortlessly'
+            return ValueError('Cannot finish a task effortlessly')
         else:
             return None
         

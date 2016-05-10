@@ -15,6 +15,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Garage PM.  If not, see <http://www.gnu.org/licenses/>.
 
+
+from garage_pm.exceptions import IllegalOperationError
 from PyQt5.QtCore import QObject, pyqtSignal
 from itertools import chain
 from ._common import PlanningState
@@ -90,15 +92,15 @@ class TaskState(object):
     def parent(self):
         return self._common.parent
     
-    @property
-    def is_child_insertion_disallowed(self):
+    def validate_insert_children(self): #TODO rename
         '''
-        Get whether may add children to task
+        Get whether may call insert_children with given args
         
         Returns
         -------
-        str or None
-            if cannot be a parent, user-friendly reason, else ``None``
+        Exception or None
+            the exception that would be thrown if called with these args,
+            ``None`` otherwise
         '''
         raise NotImplementedError()
     
@@ -145,6 +147,8 @@ class TaskState(object):
         return iter(self._common.dependencies)
     
     def add_dependency(self, task):
+        if self.planning_state == PlanningState.finished:
+            raise IllegalOperationError('Cannot add dependency to finished task')
         if task in self.ancestors:
             raise ValueError('Task may not depend on an ancestor')
         if task in self.descendants:
@@ -205,9 +209,9 @@ class TaskState(object):
 
         Returns
         -------
-        str or None
-            ``None`` if the state may be entered, else the reason why it may not
-            be entered
+        Exception or None
+            the exception that would be thrown if called with these args,
+            ``None`` otherwise
         '''
         raise NotImplementedError()
     

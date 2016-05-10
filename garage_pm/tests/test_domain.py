@@ -17,6 +17,7 @@
 
 from PyQt5.QtCore import QObject
 import pytest
+from garage_pm.exceptions import IllegalOperationError
 from garage_pm.domain import Task, Interval, EstimateType, PlanningState
 from garage_pm.domain._branch_task_state import BranchTaskState
 from datetime import datetime, timedelta
@@ -114,7 +115,7 @@ class TestTask(object):
             Note: test overlaps with TestEffortSpent
             '''
             task.insert_effort_spent(0, [interval1])
-            with pytest.raises(ValueError) as ex:
+            with pytest.raises(IllegalOperationError) as ex:
                 task.insert_children(0, [child1])
             assert 'Leaf task with effort spent on it cannot become a branch task' in str(ex.value)
             
@@ -261,7 +262,7 @@ class TestTask(object):
             
             # A branch task may not have its planning_state set
             for planning_state in PlanningState:
-                with pytest.raises(ValueError) as ex:
+                with pytest.raises(IllegalOperationError) as ex:
                     task.planning_state = planning_state
                 assert "A branch task's state is derived from its child tasks, not set" in str(ex.value)
 
@@ -362,7 +363,7 @@ class TestTask(object):
             root_task.children[0].add_dependency(root_task.children[1])
             assert tuple(root_task.children[0].dependencies) == (root_task.children[1],)
             
-        def test_ignore_add_dep_descendant(self, root_task):
+        def test_ignore_add_descendant_of_dep(self, root_task):
             '''
             When adding descendant of a task we already depend on, ignore it
             '''
@@ -372,6 +373,27 @@ class TestTask(object):
             
         # Note: adding a dependency of a dependency is not necessarily ignored
         # Note: adding dependencies of the parent aren't necessarily ignored either
+        
+    def test_finished_leaf_is_fairly_immutable(self, task, child1, interval1):
+        '''
+        When a leaf is finished it should generally not be edited without first
+        'reopening' it
+        '''
+        task.insert_effort_spent(0, [interval1])
+        task.planning_state = PlanningState.finished
+        with pytest.raises(IllegalOperationError):
+            task.effort_estimates[EstimateType.likely] = None
+        with pytest.raises(IllegalOperationError):
+            task.insert_children(0, [child1])
+        with pytest.raises(IllegalOperationError):
+            task.add_dependency(child1)
+        with pytest.raises(IllegalOperationError):
+            task.effort_estimates[EstimateType.likely] = None
+        with pytest.raises(IllegalOperationError):
+            task.insert_effort_spent(0, [interval1])
+        with pytest.raises(IllegalOperationError):
+            task.remove_effort_spent(0, 1)
+        # Note: name, description and planning_state may still be mutated. Dependencies may still be removed.
             
     def test_start_dependencies(self, root_task):
         '''
@@ -422,7 +444,6 @@ class TestTask(object):
         task2.planning_state = PlanningState.cancelled
         assert_()
         
-        
     def test_direct_non_active(self, task, task2):
         '''
         Direct dependencies to a non-active task do show up
@@ -439,24 +460,16 @@ class TestTask(object):
 
 # TODO
 
-# Make deps, children, planning_state combos solid
-#
-#
-# TODO cannot finish if an end dep is planned (active and not finished).
-# TODO cannot add deps on finished task.
-# TODO cannot change estimates on finished task.
-#
-# TODO cannot unfinish (e.g. branch tasks do) if a finished task depends on it (indirectly).
-#
-# What happens when tasks are reparented? What if adding a new task to a
-# finished branch? Just more events that could affect the planning_state of a branch,
-# possibly causing a raise.
+# TODO cannot finish if an end dep isn't finished
+# TODO when finished, an end dep becoming unfinished, raises an exception and rolls back to a valid state. => before doing something that causes a change in planning_state, check that no aforementioned violation would be created.
 #
 # Check for it up front using a dep graph, and raise? Or add a rollback system.
-# Or simply allow breaking the domain. Checking in 3 places should do the trick,
+# Checking in 3 places should do the trick,
 # so far. Those that raise are insert_children and set-planning_state. For the check the
 # dependency should be found, which may be indirect, so maybe we do want to
 # construct an actual dep graph with networkx
+#
+# TODO design ^^^^
 #
 # UI will ask user whether to remove the offending deps. Removing the deps would rewrite history (planned start) though...
 
@@ -527,7 +540,35 @@ class TestTask(object):
 # contribute to it. Optionally set a deadline for it, + show slack time. Also
 # show the predicted delivery date on it.
 
+# design of how we'd undo, save/load
+'''
+Set checkpoints. Can move to older checkpoints to undo, move to newer again to
+redo. Creating a new checkpoint, deletes all checkpoints to the right of our
+current point in history.
 
+The checkpoints are snapshots. I.e. copies of the whole task tree. When
+restoring, the views will need to reattach to a copy of a checkpoint. Any
+registered listeners in the tree need to be intact when restored later, yet
+changes in the current tree should not affect a checkpoint. These task signals
+may be connected to views.
+
+We will need code to save/load the task tree. When adding view state to that, we
+already have a checkpoint-like undo system, granted we allow multiple saves.
+So, how save/load?
+
+pickle? Can't pickle any qt stuff. What if their internals change? Boom, broken.
+Can pickle our stuff if we first separate out qt stuff (and replace qt signals with
+Python event stuff). Even so, we'd need to be careful with any internal changes
+to future garage-pm. Unless we fully detach into some format that we will not change,
+e.g. dicts, near json. In which case we might as well pretty print dump json.
+
+A save contains:
+- raw task-tree data
+- GUI state data
+
+We then reconstruct the actual tree model, not by replaying, but by using custom
+load() on each task state to restore listener configuration.
+'''
 
 
 

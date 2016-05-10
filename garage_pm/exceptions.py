@@ -15,16 +15,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Garage PM.  If not, see <http://www.gnu.org/licenses/>.
 
-from garage_pm.exceptions import IllegalOperationError
-from ._leaf_task_state import LeafTaskState
-
-class DelegatedTaskState(LeafTaskState):
-
-    def __init__(self, common_data):
-        super().__init__(common_data)
-            
-    def validate_insert_children(self):
-        return IllegalOperationError('Cannot add child tasks to a delegated task')
+class IllegalOperationError(Exception):
+    '''
+    When an operation is illegal/invalid, regardless of what arguments you throw at it.
     
-    def validate_set_planning_state(self, state):
-        return None
+    An operation is a method/function call, the getting or setting of an attribute.
+
+    When the issue is with an argument, use ValueError, not this.
+    '''

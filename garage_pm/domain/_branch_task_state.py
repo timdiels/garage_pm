@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Garage PM.  If not, see <http://www.gnu.org/licenses/>.
 
+from garage_pm.exceptions import IllegalOperationError
 from ._common import PlanningState
 from ._task_state import TaskState
 
@@ -49,10 +50,10 @@ class BranchTaskState(TaskState):
             assert False
         
     def _set_planning_state(self, value):
-        raise ValueError(self.validate_set_planning_state(value))
+        raise self.validate_set_planning_state(value)
         
     def validate_set_planning_state(self, state):
-        return "A branch task's state is derived from its child tasks, not set"
+        return IllegalOperationError("A branch task's state is derived from its child tasks, not set")
     
     @property
     def children(self):
@@ -69,8 +70,7 @@ class BranchTaskState(TaskState):
             child.events.planning_state_changed.connect(self._update_planning_state)
         self._update_planning_state()
             
-    @property
-    def is_child_insertion_disallowed(self):
+    def validate_insert_children(self):
         return None
             
     def remove_children(self, begin, end):

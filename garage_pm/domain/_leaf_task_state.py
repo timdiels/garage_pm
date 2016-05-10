@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Garage PM.  If not, see <http://www.gnu.org/licenses/>.
 
+from garage_pm.exceptions import IllegalOperationError
 from ._common import PlanningState
 from ._task_state import TaskState
 
@@ -30,7 +31,7 @@ class LeafTaskState(TaskState):
     def _set_planning_state(self, value):
         reason = self.validate_set_planning_state(value)
         if reason:
-            raise ValueError(reason)
+            raise reason
         if self._planning_state != value:
             self._planning_state = value
             self._task.events.planning_state_changed.emit(self._planning_state)
@@ -40,16 +41,17 @@ class LeafTaskState(TaskState):
         return ()
     
     def insert_children(self, index, children):
-        reason = self.is_child_insertion_disallowed
+        reason = self.validate_insert_children()
         if reason:
-            raise ValueError(reason)
+            raise reason
         else:
             self._task._become_branch_task(index, children)
     
-    @property
-    def is_child_insertion_disallowed(self):
-        if self._effort_spent:
-            return 'Leaf task with effort spent on it cannot become a branch task'
+    def validate_insert_children(self):
+        if self.planning_state == PlanningState.finished:
+            return IllegalOperationError('Cannot insert children into finished task')
+        elif self.actual_effort:
+            return IllegalOperationError('Leaf task with effort spent on it cannot become a branch task')
         else:
             return None
         
