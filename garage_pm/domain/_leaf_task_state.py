@@ -44,8 +44,7 @@ class LeafTaskState(TaskState):
         if reason:
             raise ValueError(reason)
         else:
-            self._task._become_branch_task()
-            self._task.insert_children(index, children)
+            self._task._become_branch_task(index, children)
     
     @property
     def is_child_insertion_disallowed(self):

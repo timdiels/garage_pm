@@ -45,8 +45,8 @@ class Task(object):
         else:
             setattr(self._state, attr, value)
     
-    def _become_branch_task(self):
-        self._state = BranchTaskState(self._common)
+    def _become_branch_task(self, index, children):
+        self._state = BranchTaskState(self._common, self.planning_state, index, children)
         
     def _become_delegated_task(self):
         self._state = DelegatedTaskState(self._common)

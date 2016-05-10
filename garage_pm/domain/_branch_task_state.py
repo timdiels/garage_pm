@@ -22,9 +22,11 @@ class BranchTaskState(TaskState):
     
     _planning_state_priorities = (PlanningState.planned, PlanningState.not_planned, PlanningState.cancelled, PlanningState.finished)
     
-    def __init__(self, common_data):
+    def __init__(self, common_data, planning_state, index, children):
         super().__init__(common_data)
         self._children = []
+        self._planning_state = planning_state
+        self.insert_children(index, children)
 
     def _get_planning_state(self):
         '''
@@ -32,11 +34,19 @@ class BranchTaskState(TaskState):
         -------
         TaskState
         '''
+        return self._planning_state
+    
+    def _update_planning_state(self):
         child_states = set(child.planning_state for child in self.children)
         for state in self._planning_state_priorities:
             if state in child_states:
-                return state
-        assert False
+                old_state = self._planning_state
+                self._planning_state = state
+                if old_state != state:
+                    self.events.planning_state_changed.emit(self._planning_state)
+                break
+        else:
+            assert False
         
     def _set_planning_state(self, value):
         raise ValueError(self.validate_set_planning_state(value))
@@ -56,6 +66,8 @@ class BranchTaskState(TaskState):
         self._children[index:index] = children
         for child in children:
             child._common.parent = self._task
+            child.events.planning_state_changed.connect(self._update_planning_state)
+        self._update_planning_state()
             
     @property
     def is_child_insertion_disallowed(self):
@@ -64,9 +76,12 @@ class BranchTaskState(TaskState):
     def remove_children(self, begin, end):
         for child in self._children[begin:end]:
             child._common.parent = None
+            child.events.planning_state_changed.disconnect(self._update_planning_state)
         del self._children[begin:end]
         if not self._children:
             self._task._become_effort_task()
+        else:
+            self._update_planning_state()
         
     @property
     def is_leaf(self):
