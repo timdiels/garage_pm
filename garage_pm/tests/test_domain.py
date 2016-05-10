@@ -17,7 +17,8 @@
 
 from PyQt5.QtCore import QObject
 import pytest
-from garage_pm.domain import Task, Interval, EstimateType, TaskState
+from garage_pm.domain import Task, Interval, EstimateType, PlanningState
+from garage_pm.domain._branch_task_state import BranchTaskState
 from datetime import datetime, timedelta
 from itertools import product
 
@@ -115,7 +116,7 @@ class TestTask(object):
             task.insert_effort_spent(0, [interval1])
             with pytest.raises(ValueError) as ex:
                 task.insert_children(0, [child1])
-            assert 'Task cannot become a parent as it already has effort spent on it' in str(ex.value)
+            assert 'Leaf task with effort spent on it cannot become a branch task' in str(ex.value)
             
     class TestLeafEffort(object):
         
@@ -171,24 +172,24 @@ class TestTask(object):
     class TestState(object):
         
         def test_default(self, task):
-            assert task.state == TaskState.planned
-            for state in TaskState:
-                # may enter any state except finished by default
-                if state != TaskState.finished:
-                    task.state = state
-                    assert task.state == state
+            assert task.planning_state == PlanningState.planned
+            for planning_state in PlanningState:
+                # may enter any planning_state except finished by default
+                if planning_state != PlanningState.finished:
+                    task.planning_state = planning_state
+                    assert task.planning_state == planning_state
             
         def test_cannot_set_leaf_finished(self, task, interval1):
             '''
             Cannot finish leaf when actual_effort==0
             '''
             with pytest.raises(ValueError) as ex:
-                task.state = TaskState.finished
+                task.planning_state = PlanningState.finished
             assert 'Cannot finish a task effortlessly' in str(ex.value)
             
             # but can finish with effort
             task.insert_effort_spent(0, [interval1])
-            task.state = TaskState.finished
+            task.planning_state = PlanningState.finished
             
         def test_branch(self, task, child1, child2, interval1):
             '''
@@ -202,76 +203,77 @@ class TestTask(object):
             child1.insert_effort_spent(0, [interval1])
             child2.insert_effort_spent(0, [interval1])
             
-            # A branch task may not have its state set
-            for state in TaskState: 
+            # A branch task may not have its planning_state set
+            for planning_state in PlanningState: 
                 with pytest.raises(ValueError) as ex:
-                    task.state = state
-                assert 'May not set state on branch task' in str(ex.value)
+                    task.planning_state = planning_state
+                assert "A branch task's state is derived from its child tasks, not set" in str(ex.value)
 
             # Parent state is that of the highest 'priority' child state
-            priorities = Task._task_state_priorities
+            priorities = BranchTaskState._planning_state_priorities
             for i in range(len(priorities)):
-                child1.state = priorities[i]
-                for state in priorities[i:]:
-                    child2.state = state
-                    assert task.state == priorities[i]
+                child1.planning_state = priorities[i]
+                for planning_state in priorities[i:]:
+                    child2.planning_state = planning_state
+                    assert task.planning_state == priorities[i]
                     
     def test_is_active(self, task, interval1):
         task.insert_effort_spent(0, [interval1])
         assert task.is_active
-        task.state = TaskState.finished
+        task.planning_state = PlanningState.finished
         assert task.is_active
-        task.state = TaskState.cancelled
+        task.planning_state = PlanningState.cancelled
         assert not task.is_active
-        task.state = TaskState.not_planned
+        task.planning_state = PlanningState.not_planned
         assert not task.is_active
 
-    class TestBranchEffort(object):
-        
-        @pytest.fixture(params=(TaskState.not_planned, TaskState.cancelled))
-        def branch(self, request, qt_object, child1, child2, child3, interval1, interval2, interval3):
-            branch = Task('branch', qt_object)
-            branch.insert_children(0, [child1, child2, child3])
-            child1.insert_effort_spent(0, [interval1])
-            child2.insert_effort_spent(0, [interval2])
-            child3.insert_effort_spent(0, [interval3])
-            child3.state = request.param  # make inactive
-            return branch
-            
-        @pytest.mark.parametrize('estimate_type', EstimateType)
-        def test_raise_on_set(self, branch, estimate_type):
-            with pytest.raises(ValueError) as ex:
-                branch.effort_estimates[estimate_type] = timedelta(1)
-            assert 'May not set effort estimate on branch task' in str(ex.value)
-        
-        @pytest.mark.parametrize('estimate_type', EstimateType)    
-        def test_get_estimate(self, branch, estimate_type):
-            '''
-            When get estimate, take sum of active children
-            '''
-            for i, child in enumerate(branch.children): 
-                child.effort_estimates[estimate_type] = timedelta(days=i+1)
-            assert branch.effort_estimates[estimate_type] == timedelta(days=1+2)
-        
-        def test_get_actual_effort(self, branch, child1, child2):
-            '''
-            When get actual_effort, take sum of active children
-            '''
-            assert branch.actual_effort == child1.actual_effort + child2.actual_effort
-            
-        def test_get_predicted_effort(self, branch):
-            '''
-            When get predicted_effort, take sum of active children; if either is None, so is parent
-            '''
-            for estimate_type in EstimateType:
-                assert branch.predicted_effort is None  # when a child has None as predicted_effort, so has parent
-                for i, child in enumerate(branch.children): 
-                    child.effort_estimates[estimate_type] = timedelta(days=i+1)
-            assert branch.predicted_effort == timedelta(days=1+2)
-            
-            # unactive children with predicted_effort=None do not affect parent
-            branch.children[-1].effort_estimates[EstimateType.likely] = None
-            assert branch.predicted_effort is not None
+        #TODO rm
+#     class TestBranchEffort(object):
+#         
+#         @pytest.fixture(params=(PlanningState.not_planned, PlanningState.cancelled))
+#         def branch(self, request, qt_object, child1, child2, child3, interval1, interval2, interval3):
+#             branch = Task('branch', qt_object)
+#             branch.insert_children(0, [child1, child2, child3])
+#             child1.insert_effort_spent(0, [interval1])
+#             child2.insert_effort_spent(0, [interval2])
+#             child3.insert_effort_spent(0, [interval3])
+#             child3.planning_state = request.param  # make inactive
+#             return branch
+#             
+#         @pytest.mark.parametrize('estimate_type', EstimateType)
+#         def test_raise_on_set(self, branch, estimate_type):
+#             with pytest.raises(ValueError) as ex:
+#                 branch.effort_estimates[estimate_type] = timedelta(1)
+#             assert 'May not set effort estimate on branch task' in str(ex.value)
+#         
+#         @pytest.mark.parametrize('estimate_type', EstimateType)    
+#         def test_get_estimate(self, branch, estimate_type):
+#             '''
+#             When get estimate, take sum of active children
+#             '''
+#             for i, child in enumerate(branch.children): 
+#                 child.effort_estimates[estimate_type] = timedelta(days=i+1)
+#             assert branch.effort_estimates[estimate_type] == timedelta(days=1+2)
+#         
+#         def test_get_actual_effort(self, branch, child1, child2):
+#             '''
+#             When get actual_effort, take sum of active children
+#             '''
+#             assert branch.actual_effort == child1.actual_effort + child2.actual_effort
+#             
+#         def test_get_predicted_effort(self, branch):
+#             '''
+#             When get predicted_effort, take sum of active children; if either is None, so is parent
+#             '''
+#             for estimate_type in EstimateType:
+#                 assert branch.predicted_effort is None  # when a child has None as predicted_effort, so has parent
+#                 for i, child in enumerate(branch.children): 
+#                     child.effort_estimates[estimate_type] = timedelta(days=i+1)
+#             assert branch.predicted_effort == timedelta(days=1+2)
+#             
+#             # unactive children with predicted_effort=None do not affect parent
+#             branch.children[-1].effort_estimates[EstimateType.likely] = None
+#             assert branch.predicted_effort is not None
         
     def test_ancestors(self, root_task):
         assert tuple(root_task.ancestors) == ()
@@ -392,7 +394,7 @@ class TestTask(object):
         
         # and ignore inactive children
         task11.insert_children(0, [task2])
-        task2.state = TaskState.cancelled
+        task2.planning_state = PlanningState.cancelled
         assert_()
         
         
@@ -401,7 +403,7 @@ class TestTask(object):
         Direct dependencies to a non-active task do show up
         '''
         task.add_dependency(task2)
-        task2.state = TaskState.cancelled
+        task2.planning_state = PlanningState.cancelled
         assert list(task.dependencies) == [task2]
         assert list(task.start_dependencies) == [task2]
         assert list(task.end_dependencies) == [task2] 
@@ -412,7 +414,7 @@ class TestTask(object):
 
 # TODO
 
-# Make deps, children, state combos solid
+# Make deps, children, planning_state combos solid
 #
 #
 # TODO cannot finish if an end dep is planned (active and not finished).
@@ -422,12 +424,12 @@ class TestTask(object):
 # TODO cannot unfinish (e.g. branch tasks do) if a finished task depends on it (indirectly).
 #
 # What happens when tasks are reparented? What if adding a new task to a
-# finished branch? Just more events that could affect the state of a branch,
+# finished branch? Just more events that could affect the planning_state of a branch,
 # possibly causing a raise.
 #
 # Check for it up front using a dep graph, and raise? Or add a rollback system.
 # Or simply allow breaking the domain. Checking in 3 places should do the trick,
-# so far. Those that raise are insert_children and set-state. For the check the
+# so far. Those that raise are insert_children and set-planning_state. For the check the
 # dependency should be found, which may be indirect, so maybe we do want to
 # construct an actual dep graph with networkx
 #

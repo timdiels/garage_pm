@@ -28,7 +28,7 @@ from PyQt5.QtWidgets import (
 )
 from datetime import timedelta
 from garage_pm import config
-from garage_pm.domain import TaskState
+from garage_pm.domain import PlanningState
 
 class TreeView(QTreeView):
 
@@ -217,7 +217,7 @@ class TaskDetailsView(QWidget):
         
         task_radios_layout = QHBoxLayout()
         self.task_state_radios = set()
-        for state in TaskState:
+        for state in PlanningState:
             radio = QRadioButton(state.value)
             self.task_state_radios.add(radio)
             task_radios_layout.addWidget(radio)

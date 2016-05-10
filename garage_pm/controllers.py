@@ -17,7 +17,7 @@
 
 from PyQt5.QtCore import Qt, QObject, QItemSelectionModel, QSortFilterProxyModel, pyqtSignal
 from garage_pm.models import TaskTreeModel, TaskEffortSpentModel
-from garage_pm.domain import TaskState
+from garage_pm.domain import PlanningState
 from enum import Enum
 
 def connect(signal, slot, connect_=True):
@@ -87,7 +87,7 @@ class TaskDetailsController(QObject):
         super().__init__(task_details_view)
         self._view = task_details_view
         self._task = None
-        self._task_state_controller = EnumRadioController(TaskState)(self._view.task_state_radios, parent=self)
+        self._task_state_controller = EnumRadioController(PlanningState)(self._view.task_state_radios, parent=self)
         
         self._view.planned_start_override_edit.toggled.connect(self._on_view_planned_start_override_toggled)
             
