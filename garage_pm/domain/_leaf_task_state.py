@@ -36,6 +36,12 @@ class LeafTaskState(TaskState):
             self._planning_state = value
             self._task.events.planning_state_changed.emit(self._planning_state)
     
+    def validate_set_planning_state(self, state):
+        if state == PlanningState.finished and self._has_unfinished_end_dependencies:
+            return ValueError('Cannot finish before end_dependencies have finished')
+        else:
+            return None
+        
     @property
     def children(self):
         return ()

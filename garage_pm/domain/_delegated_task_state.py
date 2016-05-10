@@ -25,6 +25,3 @@ class DelegatedTaskState(LeafTaskState):
             
     def validate_insert_children(self):
         return IllegalOperationError('Cannot add child tasks to a delegated task')
-    
-    def validate_set_planning_state(self, state):
-        return None

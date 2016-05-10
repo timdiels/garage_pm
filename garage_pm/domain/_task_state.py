@@ -215,3 +215,6 @@ class TaskState(object):
         '''
         raise NotImplementedError()
     
+    @property
+    def _has_unfinished_end_dependencies(self):
+        return any(dependency.planning_state != PlanningState.finished for dependency in self.end_dependencies)

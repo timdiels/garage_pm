@@ -453,6 +453,35 @@ class TestTask(object):
         assert list(task.dependencies) == [task2]
         assert list(task.start_dependencies) == [task2]
         assert list(task.end_dependencies) == [task2] 
+    
+    def test_cannot_spend_effort_if_unfinished_end_dep(self, task, task2, interval1, interval2):
+        '''
+        When trying to spend effort on a task before its dependencies have finished, raise
+        '''
+        task.add_dependency(task2)
+        
+        with pytest.raises(IllegalOperationError) as ex:
+            task.insert_effort_spent(0, [interval1])
+        assert 'Cannot spend effort on task before its end_dependencies have finished' in str(ex.value)
+        
+        task2.insert_effort_spent(0, [interval2])
+        task2.planning_state = PlanningState.finished
+        task.insert_effort_spent(0, [interval1])
+        
+    def test_cannot_finish_if_unfinished_end_dep(self, task, task2, interval1, interval2):
+        '''
+        When trying to finish a task before its dependencies, raise
+        '''
+        task.add_dependency(task2)
+        
+        with pytest.raises(ValueError) as ex:
+            task.planning_state = PlanningState.finished
+        assert 'Cannot finish before end_dependencies have finished' in str(ex.value)
+        
+        task2.insert_effort_spent(0, [interval2])
+        task2.planning_state = PlanningState.finished
+        task.insert_effort_spent(0, [interval1])
+        task.planning_state = PlanningState.finished
                 
 # Note: in implementing, you want mixins to keep things separate in their own
 # modules, it gets pretty complex already. You want to be able to think of
@@ -460,7 +489,6 @@ class TestTask(object):
 
 # TODO
 
-# TODO cannot finish if an end dep isn't finished
 # TODO when finished, an end dep becoming unfinished, raises an exception and rolls back to a valid state. => before doing something that causes a change in planning_state, check that no aforementioned violation would be created.
 #
 # Check for it up front using a dep graph, and raise? Or add a rollback system.

@@ -168,6 +168,8 @@ class EffortTaskState(LeafTaskState):
         index : int
         effort : [Interval]
         '''
+        if self._has_unfinished_end_dependencies:
+            raise IllegalOperationError('Cannot spend effort on task before its end_dependencies have finished')
         if self.planning_state == PlanningState.finished:
             raise IllegalOperationError('Cannot insert effort into finished task')
         self._effort_spent[index:index] = effort
@@ -180,6 +182,9 @@ class EffortTaskState(LeafTaskState):
         self.events.effort_spent_changed.emit()
         
     def validate_set_planning_state(self, state):
+        ex = super().validate_set_planning_state(state)
+        if ex:
+            return ex
         if state == PlanningState.finished and self.actual_effort == timedelta():
             return ValueError('Cannot finish a task effortlessly')
         else:
