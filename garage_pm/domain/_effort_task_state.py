@@ -77,7 +77,7 @@ class _EffortEstimates(object):
             self.changed[key].emit(value)
             
 class _EffortTaskStateEvents(QObject):
-    predicted_effort_changed = pyqtSignal(timedelta)
+    predicted_effort_changed = pyqtSignal(object)
     actual_effort_changed = pyqtSignal(timedelta)
     effort_spent_changed = pyqtSignal()
     
@@ -90,18 +90,21 @@ class EffortTaskState(LeafTaskState):
         super().__init__(common_data)
         self._effort_estimates = _EffortEstimates(self._qt_parent)
         self._effort_spent = []
-        
         self._events = _EffortTaskStateEvents(self._qt_parent)
-        self._events.effort_spent_changed.connect(self._on_effort_spent_changed)
+        
+        # predicted effort
+        self._predicted_effort = None
+        for estimate_type in EstimateType:
+            self.effort_estimates.changed[estimate_type].connect(self._update_predicted_effort)
+
+        # actual effort
+        self._actual_effort = timedelta()
+        self._events.effort_spent_changed.connect(self._update_actual_effort)
     
     @property
     def effort_estimates(self):
         return self._effort_estimates
     
-    def _on_effort_input_changed(self): #TODO
-        '''When effort optimistic, likely or pessimistic change'''
-        self.events.predicted_effort_changed.emit(self.predicted_effort)
-            
     @property
     def predicted_effort(self):
         '''
@@ -109,14 +112,21 @@ class EffortTaskState(LeafTaskState):
         
         E.g. based on discrepancies between a user's estimates and actual effort spent on tasks
         '''
+        return self._predicted_effort
+        
+    def _update_predicted_effort(self):
+        old_value = self._predicted_effort
         if any(self._effort_estimates[x] is None for x in EstimateType):
-            return None
-        weights = {
-            EstimateType.optimistic: 1,
-            EstimateType.likely: 4,
-            EstimateType.pessimistic: 1,
-        }
-        return sum((weight * self._effort_estimates[estimate_type] for estimate_type, weight in weights.items()), timedelta()) / sum(weights.values())
+            self._predicted_effort = None
+        else:
+            weights = {
+                EstimateType.optimistic: 1,
+                EstimateType.likely: 4,
+                EstimateType.pessimistic: 1,
+            }
+            self._predicted_effort = sum((weight * self._effort_estimates[estimate_type] for estimate_type, weight in weights.items()), timedelta()) / sum(weights.values())
+        if old_value != self._predicted_effort:
+            self.events.predicted_effort_changed.emit(self._predicted_effort)
     
     @property
     def actual_effort(self):
@@ -127,10 +137,13 @@ class EffortTaskState(LeafTaskState):
         -----
         Effort of child tasks is excluded, like the other effort_* attributes.
         '''
-        if self.is_leaf:
-            return sum((x.duration for x in self._effort_spent), timedelta())
-        else:
-            return sum((x.actual_effort for x in self.children if x.is_active), timedelta())
+        return self._actual_effort
+    
+    def _update_actual_effort(self):
+        old_value = self._actual_effort
+        self._actual_effort = sum((x.duration for x in self._effort_spent), timedelta())
+        if old_value != self._actual_effort:
+            self.events.actual_effort_changed.emit(self._actual_effort)
     
     @property
     def effort_spent(self):
@@ -143,9 +156,6 @@ class EffortTaskState(LeafTaskState):
             Time intervals of effort spent on the task 
         '''
         return tuple(self._effort_spent)
-    
-    def _on_effort_spent_changed(self):
-        self.events.actual_effort_changed.emit(self.actual_effort)
     
     def insert_effort_spent(self, index, effort):
         '''

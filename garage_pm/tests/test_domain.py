@@ -118,10 +118,10 @@ class TestTask(object):
                 task.insert_children(0, [child1])
             assert 'Leaf task with effort spent on it cannot become a branch task' in str(ex.value)
             
-    class TestLeafEffort(object):
+    class TestEffortLeaf(object):
         
         '''
-        Test effort_estimates in a leaf task
+        Test things specific to an effort leaf
         '''
         
         @pytest.mark.parametrize('estimate_type', EstimateType)
@@ -163,6 +163,43 @@ class TestTask(object):
             assert task.actual_effort == timedelta()
             task.insert_effort_spent(0, [interval1])
             assert task.actual_effort == interval1.duration
+            
+        def test_effort_estimate_events(self, task, mocker):
+            one_day = timedelta(days=1)
+            for estimate_type in EstimateType:
+                estimate_changed = mocker.Mock()
+                task.effort_estimates.changed[estimate_type].connect(estimate_changed)
+                
+                task.effort_estimates[estimate_type] = one_day
+                estimate_changed.assert_called_with(one_day)
+                estimate_changed.reset_mock()
+                
+                task.effort_estimates[estimate_type] = one_day
+                estimate_changed.assert_not_called()
+        
+        def test_predicted_effort_changed_event(self, task, mocker):
+            predicted_changed = mocker.Mock()
+            task.events.predicted_effort_changed.connect(predicted_changed)
+            
+            for estimate_type in EstimateType:
+                task.effort_estimates[estimate_type] = timedelta(days=1)
+            predicted_changed.assert_called_once_with(timedelta(days=1))
+            predicted_changed.reset_mock()
+             
+            task.effort_estimates[EstimateType.optimistic] = None
+            predicted_changed.assert_called_once_with(None)
+            predicted_changed.reset_mock()
+              
+            task.effort_estimates[EstimateType.likely] = None
+            predicted_changed.assert_not_called()
+                
+        def test_actual_effort_changed_event(self, task, interval1, mocker):
+            actual_changed = mocker.Mock()
+            task.events.actual_effort_changed.connect(actual_changed)
+            
+            task.insert_effort_spent(0, [interval1])
+            actual_changed.assert_called_once_with(interval1.duration)
+            actual_changed.reset_mock()
 
     def test_is_leaf(self, task, child1):
         assert task.is_leaf
