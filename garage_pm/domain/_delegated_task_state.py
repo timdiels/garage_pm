@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Garage PM.  If not, see <http://www.gnu.org/licenses/>.
 
-from garage_pm.exceptions import IllegalOperationError
+from chicken_turtle_util.exceptions import InvalidOperationError
 from ._leaf_task_state import LeafTaskState
 
 class DelegatedTaskState(LeafTaskState):
@@ -24,4 +24,4 @@ class DelegatedTaskState(LeafTaskState):
         super().__init__(common_data)
             
     def validate_insert_children(self):
-        return IllegalOperationError('Cannot add child tasks to a delegated task')
+        return InvalidOperationError('Cannot add child tasks to a delegated task')

@@ -16,7 +16,7 @@
 # along with Garage PM.  If not, see <http://www.gnu.org/licenses/>.
 
 
-from garage_pm.exceptions import IllegalOperationError
+from chicken_turtle_util.exceptions import InvalidOperationError
 from PyQt5.QtCore import QObject, pyqtSignal
 from itertools import chain
 from ._common import PlanningState
@@ -44,6 +44,7 @@ class TaskStateData(object):
         self.name = name
         self.description = ''
         self.dependencies = set()
+        self.dependers = set() # inverse relation of dependencies, i.e. those who depend on us
         self.parent = None
 
 class TaskState(object):
@@ -51,6 +52,10 @@ class TaskState(object):
     def __init__(self, task_state_data):
         self._common = task_state_data
         self._events = QObject(self._qt_parent)
+    
+    @property
+    def _dependers(self):
+        return self._common.dependers
     
     @property
     def _task(self):
@@ -92,7 +97,7 @@ class TaskState(object):
     def parent(self):
         return self._common.parent
     
-    def validate_insert_children(self): #TODO rename
+    def validate_insert_children(self, index, children):
         '''
         Get whether may call insert_children with given args
         
@@ -148,7 +153,7 @@ class TaskState(object):
     
     def add_dependency(self, task):
         if self.planning_state == PlanningState.finished:
-            raise IllegalOperationError('Cannot add dependency to finished task')
+            raise InvalidOperationError('Cannot add dependency to finished task')
         if task in self.ancestors:
             raise ValueError('Task may not depend on an ancestor')
         if task in self.descendants:
@@ -158,9 +163,11 @@ class TaskState(object):
                 return
         self._common.dependencies -= {x for x in self._common.dependencies if x in task.descendants} 
         self._common.dependencies.add(task)
+        task._dependers.add(self)
         
     def remove_dependency(self, task):
         self._common.dependencies.remove(task)
+        task._dependers.remove(self)
     
     @property
     def start_dependencies(self):
@@ -218,3 +225,12 @@ class TaskState(object):
     @property
     def _has_unfinished_end_dependencies(self):
         return any(dependency.planning_state != PlanningState.finished for dependency in self.end_dependencies)
+
+    @property
+    def _has_finished_depender(self):
+        '''
+        Get whether has a (direct or indirect) finished depender
+        '''
+        dependers = set.union(*chain((x._dependers for x in self.ancestors), (self._dependers,)))
+        return any(x.planning_state == PlanningState.finished for x in dependers)
+        

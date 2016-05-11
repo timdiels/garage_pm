@@ -17,7 +17,7 @@
 
 from PyQt5.QtCore import QObject, pyqtSignal
 from datetime import timedelta
-from garage_pm.exceptions import IllegalOperationError
+from chicken_turtle_util.exceptions import InvalidOperationError
 from ._common import EstimateType, PlanningState
 from ._leaf_task_state import LeafTaskState
     
@@ -73,7 +73,7 @@ class _EffortEstimates(object):
         value : datetime.timedelta or None
         '''
         if self._task.planning_state == PlanningState.finished:
-            raise IllegalOperationError('Cannot edit effort estimates on finished task')
+            raise InvalidOperationError('Cannot edit effort estimates on finished task')
         if value is not None and value <= timedelta():
             raise ValueError('Effort estimate must be > timedelta(0)')
         if self._estimates[key] != value:
@@ -169,15 +169,15 @@ class EffortTaskState(LeafTaskState):
         effort : [Interval]
         '''
         if self._has_unfinished_end_dependencies:
-            raise IllegalOperationError('Cannot spend effort on task before its end_dependencies have finished')
+            raise InvalidOperationError('Cannot spend effort on task before its end_dependencies have finished')
         if self.planning_state == PlanningState.finished:
-            raise IllegalOperationError('Cannot insert effort into finished task')
+            raise InvalidOperationError('Cannot insert effort into finished task')
         self._effort_spent[index:index] = effort
         self.events.effort_spent_changed.emit()
         
     def remove_effort_spent(self, begin, end):
         if self.planning_state == PlanningState.finished:
-            raise IllegalOperationError('Cannot remove effort from finished task')
+            raise InvalidOperationError('Cannot remove effort from finished task')
         del self._effort_spent[begin:end]
         self.events.effort_spent_changed.emit()
         

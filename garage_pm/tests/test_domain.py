@@ -17,7 +17,7 @@
 
 from PyQt5.QtCore import QObject
 import pytest
-from garage_pm.exceptions import IllegalOperationError
+from chicken_turtle_util.exceptions import InvalidOperationError
 from garage_pm.domain import Task, Interval, EstimateType, PlanningState
 from garage_pm.domain._branch_task_state import BranchTaskState
 from datetime import datetime, timedelta
@@ -115,7 +115,7 @@ class TestTask(object):
             Note: test overlaps with TestEffortSpent
             '''
             task.insert_effort_spent(0, [interval1])
-            with pytest.raises(IllegalOperationError) as ex:
+            with pytest.raises(InvalidOperationError) as ex:
                 task.insert_children(0, [child1])
             assert 'Leaf task with effort spent on it cannot become a branch task' in str(ex.value)
             
@@ -262,7 +262,7 @@ class TestTask(object):
             
             # A branch task may not have its planning_state set
             for planning_state in PlanningState:
-                with pytest.raises(IllegalOperationError) as ex:
+                with pytest.raises(InvalidOperationError) as ex:
                     task.planning_state = planning_state
                 assert "A branch task's state is derived from its child tasks, not set" in str(ex.value)
 
@@ -381,17 +381,17 @@ class TestTask(object):
         '''
         task.insert_effort_spent(0, [interval1])
         task.planning_state = PlanningState.finished
-        with pytest.raises(IllegalOperationError):
+        with pytest.raises(InvalidOperationError):
             task.effort_estimates[EstimateType.likely] = None
-        with pytest.raises(IllegalOperationError):
+        with pytest.raises(InvalidOperationError):
             task.insert_children(0, [child1])
-        with pytest.raises(IllegalOperationError):
+        with pytest.raises(InvalidOperationError):
             task.add_dependency(child1)
-        with pytest.raises(IllegalOperationError):
+        with pytest.raises(InvalidOperationError):
             task.effort_estimates[EstimateType.likely] = None
-        with pytest.raises(IllegalOperationError):
+        with pytest.raises(InvalidOperationError):
             task.insert_effort_spent(0, [interval1])
-        with pytest.raises(IllegalOperationError):
+        with pytest.raises(InvalidOperationError):
             task.remove_effort_spent(0, 1)
         # Note: name, description and planning_state may still be mutated. Dependencies may still be removed.
             
@@ -460,7 +460,7 @@ class TestTask(object):
         '''
         task.add_dependency(task2)
         
-        with pytest.raises(IllegalOperationError) as ex:
+        with pytest.raises(InvalidOperationError) as ex:
             task.insert_effort_spent(0, [interval1])
         assert 'Cannot spend effort on task before its end_dependencies have finished' in str(ex.value)
         
@@ -482,24 +482,84 @@ class TestTask(object):
         task2.planning_state = PlanningState.finished
         task.insert_effort_spent(0, [interval1])
         task.planning_state = PlanningState.finished
+        
+    class TestCannotUnfinishIfDependedOnByFinished(object):
+        
+        '''
+        When a finished task depends on a (finished) task, any operation that
+        may unfinish the depended task will raise
+        
+        Atomicity: After having caught the exception, the task tree is still
+        valid; as if the offending call hadn't happened.
+        '''
+        
+        def test_leaf(self, task, task2, interval1, interval2):
+            '''
+            When depending directly on leaf, raise when its planning state changes
+            '''
+            # setup
+            task.add_dependency(task2)
+            task2.insert_effort_spent(0, [interval2])
+            task2.planning_state = PlanningState.finished
+            task.insert_effort_spent(0, [interval1])
+            task.planning_state = PlanningState.finished
+            
+            # test
+            ex = task2.validate_set_planning_state(PlanningState.planned)
+            assert 'Cannot unfinish task as a finished task depends on it (perhaps indirectly)' in str(ex)
+            with pytest.raises(ValueError) as ex2:
+                task2.planning_state = PlanningState.planned
+            assert ex2.value.args == ex.args
+              
+        def test_indirect_branch_child_insert(self, qt_object, interval1, interval2, interval3, task):
+            '''
+            When depending on branch, raise when it gains a descendant that
+            causes branch to unfinish or when a descendant's leaf is assigned an
+            unfinished planning state
+            '''
+            # setup
+            t1 = Task('1', qt_object)
+            t11 = Task('1.1', qt_object)
+            t111 = Task('1.1.1', qt_object)
+            t1111 = Task('1.1.1.1', qt_object)
+            t12 = Task('1.2', qt_object)
+            t1.insert_children(0, [t11, t12])
+            t11.insert_children(0, [t111])
+            t111.insert_children(0, [t1111])
+            
+            t12.add_dependency(t11)
+            t1111.insert_effort_spent(0, [interval1])
+            t1111.planning_state = PlanningState.finished
+            t12.insert_effort_spent(0, [interval2])
+            t12.planning_state = PlanningState.finished
+            
+            # raise on adding unfinished child to depended branch
+            ex = t111.validate_insert_children(0, [task])
+            assert 'Cannot insert unfinished task into finished branch which is depended on (perhaps indirectly) by a finished task' in str(ex)
+            with pytest.raises(ValueError) as ex2:
+                t111.insert_children(0, [task])
+            assert ex2.value.args == ex.args
+            
+            # do allow inserting a finished child into a depended branch
+            task.insert_effort_spent(0, [interval3])
+            task.planning_state = PlanningState.finished
+            assert t111.validate_insert_children(0, [task]) is None
+            t111.insert_children(0, [task])
+            
+            # raise on unfinishing a descendant leaf task of the depended branch
+            ex = t1111.validate_set_planning_state(PlanningState.planned)
+            assert 'Cannot unfinish task as a finished task depends on it (perhaps indirectly)' in str(ex)
+            with pytest.raises(ValueError) as ex2:
+                t1111.planning_state = PlanningState.planned
+            assert ex2.value.args == ex.args
+            
+        # Note: a finished leaf cannot become an (unfinished) branch without first becoming an unfinished leaf
                 
 # Note: in implementing, you want mixins to keep things separate in their own
 # modules, it gets pretty complex already. You want to be able to think of
 # things in isolation, i.e. in modules (not python modules).
 
 # TODO
-
-# TODO when finished, an end dep becoming unfinished, raises an exception and rolls back to a valid state. => before doing something that causes a change in planning_state, check that no aforementioned violation would be created.
-#
-# Check for it up front using a dep graph, and raise? Or add a rollback system.
-# Checking in 3 places should do the trick,
-# so far. Those that raise are insert_children and set-planning_state. For the check the
-# dependency should be found, which may be indirect, so maybe we do want to
-# construct an actual dep graph with networkx
-#
-# TODO design ^^^^
-#
-# UI will ask user whether to remove the offending deps. Removing the deps would rewrite history (planned start) though...
 
 # Time tracking: only a single task can be worked on at a time. All tasks should
 # have access to a Context with an attrib for the currently tracked task, along
@@ -598,5 +658,6 @@ We then reconstruct the actual tree model, not by replaying, but by using custom
 load() on each task state to restore listener configuration.
 '''
 
-
-
+# GUI todos
+#
+# when unable to unfinish due to depender, GUI will ask user whether to remove the offending deps. Removing the deps would rewrite history (planned start) though...

@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Garage PM.  If not, see <http://www.gnu.org/licenses/>.
 
-from garage_pm.exceptions import IllegalOperationError
+from chicken_turtle_util.exceptions import InvalidOperationError
 from ._common import PlanningState
 from ._task_state import TaskState
 
@@ -53,24 +53,29 @@ class BranchTaskState(TaskState):
         raise self.validate_set_planning_state(value)
         
     def validate_set_planning_state(self, state):
-        return IllegalOperationError("A branch task's state is derived from its child tasks, not set")
+        return InvalidOperationError("A branch task's state is derived from its child tasks, not set")
     
     @property
     def children(self):
         return tuple(self._children)
     
     def insert_children(self, index, children):
-        if set(children) & set(self._children):
-            raise ValueError("Cannot add tasks as child when they're already a child of this task")
-        if any(x.parent for x in children):
-            raise ValueError("May only make orphans into children of a task")
+        ex = self.validate_insert_children(index, children)
+        if ex:
+            raise ex
         self._children[index:index] = children
         for child in children:
             child._common.parent = self._task
             child.events.planning_state_changed.connect(self._update_planning_state)
         self._update_planning_state()
             
-    def validate_insert_children(self):
+    def validate_insert_children(self, index, children):
+        if set(children) & set(self._children):
+            return ValueError("Cannot add tasks as child when they're already a child of this task")
+        if any(x.parent for x in children):
+            return ValueError("May only make orphans into children of a task")
+        if self._has_finished_depender and any(x.planning_state != PlanningState.finished for x in children):
+            return ValueError('Cannot insert unfinished task into finished branch which is depended on (perhaps indirectly) by a finished task')
         return None
             
     def remove_children(self, begin, end):

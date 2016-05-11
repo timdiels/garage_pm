@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Garage PM.  If not, see <http://www.gnu.org/licenses/>.
 
-from garage_pm.exceptions import IllegalOperationError
+from chicken_turtle_util.exceptions import InvalidOperationError
 from ._common import PlanningState
 from ._task_state import TaskState
 
@@ -29,9 +29,9 @@ class LeafTaskState(TaskState):
         return self._planning_state
     
     def _set_planning_state(self, value):
-        reason = self.validate_set_planning_state(value)
-        if reason:
-            raise reason
+        ex = self.validate_set_planning_state(value)
+        if ex:
+            raise ex
         if self._planning_state != value:
             self._planning_state = value
             self._task.events.planning_state_changed.emit(self._planning_state)
@@ -39,6 +39,8 @@ class LeafTaskState(TaskState):
     def validate_set_planning_state(self, state):
         if state == PlanningState.finished and self._has_unfinished_end_dependencies:
             return ValueError('Cannot finish before end_dependencies have finished')
+        elif state != PlanningState.finished and self._has_finished_depender:
+            return ValueError('Cannot unfinish task as a finished task depends on it (perhaps indirectly)')
         else:
             return None
         
@@ -47,17 +49,17 @@ class LeafTaskState(TaskState):
         return ()
     
     def insert_children(self, index, children):
-        reason = self.validate_insert_children()
+        reason = self.validate_insert_children(index, children)
         if reason:
             raise reason
         else:
             self._task._become_branch_task(index, children)
     
-    def validate_insert_children(self):
+    def validate_insert_children(self, index, children):
         if self.planning_state == PlanningState.finished:
-            return IllegalOperationError('Cannot insert children into finished task')
+            return InvalidOperationError('Cannot insert children into finished task')
         elif self.actual_effort:
-            return IllegalOperationError('Leaf task with effort spent on it cannot become a branch task')
+            return InvalidOperationError('Leaf task with effort spent on it cannot become a branch task')
         else:
             return None
         
