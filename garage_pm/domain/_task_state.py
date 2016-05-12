@@ -46,6 +46,7 @@ class TaskStateData(object):
         self.dependencies = set()
         self.dependers = set() # inverse relation of dependencies, i.e. those who depend on us
         self.parent = None
+        self.planning_state = PlanningState.planned
 
 class TaskState(object):
     
@@ -64,6 +65,14 @@ class TaskState(object):
     @property
     def _qt_parent(self):
         return self._common.qt_parent
+    
+    @property
+    def _planning_state(self):
+        return self._common.planning_state
+    
+    @_planning_state.setter
+    def _planning_state(self, value):
+        self._common.planning_state = value
     
     @property
     def events(self):
@@ -166,6 +175,8 @@ class TaskState(object):
         task._dependers.add(self)
         
     def remove_dependency(self, task):
+        if self.planning_state == PlanningState.finished:
+            raise InvalidOperationError('Cannot remove dependency from finished task')
         self._common.dependencies.remove(task)
         task._dependers.remove(self)
     
@@ -233,4 +244,42 @@ class TaskState(object):
         '''
         dependers = set.union(*chain((x._dependers for x in self.ancestors), (self._dependers,)))
         return any(x.planning_state == PlanningState.finished for x in dependers)
+    
+    def _get_delegated(self):
+        return False
+    
+    def _set_delegated(self, value):
+        ex = self.validate_set_delegated(value)
+        if ex:
+            raise ex
+        if self.delegated != value:
+            if value:
+                self._task._become_delegated_task()
+            else:
+                self._task._become_effort_task()
+                
+    def validate_set_delegated(self, delegated):
+        '''
+        Get whether may set delegated to given value
         
+        Parameters
+        ----------
+        delegated : bool
+        
+        Returns
+        -------
+        Exception or None
+            the exception that would be thrown if called with these args,
+            ``None`` otherwise
+        '''
+        if self.planning_state == PlanningState.finished:
+            return InvalidOperationError('Cannot change whether a is delegated when it is already finished')
+    
+    delegated = property(
+        fget=lambda self: self._get_delegated(), 
+        fset=lambda self, value: self._set_delegated(value),
+        doc='''
+        Whether the task is delegated to someone else
+        '''
+    )
+    

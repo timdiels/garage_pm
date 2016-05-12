@@ -23,7 +23,6 @@ class LeafTaskState(TaskState):
     
     def __init__(self, common_data):
         super().__init__(common_data)
-        self._planning_state = PlanningState.planned
     
     def _get_planning_state(self):
         return self._planning_state

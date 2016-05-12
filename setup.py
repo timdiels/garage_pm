@@ -68,9 +68,7 @@ setup(
                         '-  run with ``garage-pm``\n',
     'name': 'garage-pm',
     'package_data': {},
-    'package_name': 'garage_pm',
     'packages': ['garage_pm', 'garage_pm.tests', 'garage_pm.domain'],
-    'pre_commit_no_ignore': [],
     'url': 'https://github.com/timdiels/garage_pm',
     'version': '0.0.0'}
 )

@@ -23,10 +23,9 @@ class BranchTaskState(TaskState):
     
     _planning_state_priorities = (PlanningState.planned, PlanningState.not_planned, PlanningState.cancelled, PlanningState.finished)
     
-    def __init__(self, common_data, planning_state, index, children):
+    def __init__(self, common_data, index, children):
         super().__init__(common_data)
         self._children = []
-        self._planning_state = planning_state
         self.insert_children(index, children)
 
     def _get_planning_state(self):
@@ -38,7 +37,7 @@ class BranchTaskState(TaskState):
         return self._planning_state
     
     def _update_planning_state(self):
-        child_states = set(child.planning_state for child in self.children)
+        child_states = {child.planning_state for child in self.children}
         for state in self._planning_state_priorities:
             if state in child_states:
                 old_state = self._planning_state
@@ -91,4 +90,11 @@ class BranchTaskState(TaskState):
     @property
     def is_leaf(self):
         return False
-    
+
+    def validate_set_delegated(self, delegated):
+        ex = super().validate_set_delegated(delegated)
+        if ex:
+            return ex
+        if delegated:
+            return ValueError('Cannot delegate branch task')
+        return None

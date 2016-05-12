@@ -17,11 +17,26 @@
 
 from chicken_turtle_util.exceptions import InvalidOperationError
 from ._leaf_task_state import LeafTaskState
+from garage_pm.domain._common import PlanningState
 
 class DelegatedTaskState(LeafTaskState):
 
     def __init__(self, common_data):
         super().__init__(common_data)
+        self._duration = None
             
-    def validate_insert_children(self):
+    def validate_insert_children(self, index, children):
         return InvalidOperationError('Cannot add child tasks to a delegated task')
+
+    def _get_delegated(self):
+        return True
+
+    @property
+    def duration(self):
+        return self._duration
+    
+    @duration.setter
+    def duration(self, value):
+        if self.planning_state == PlanningState.finished:
+            raise InvalidOperationError('Cannot change duration on finished task')
+        self._duration = value

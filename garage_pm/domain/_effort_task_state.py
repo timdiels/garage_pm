@@ -190,3 +190,11 @@ class EffortTaskState(LeafTaskState):
         else:
             return None
         
+    def validate_set_delegated(self, delegated):
+        ex = super().validate_set_delegated(delegated)
+        if ex:
+            return ex
+        if self.effort_spent and delegated:
+            return ValueError('Cannot delegate task that already has effort spent on it')
+        return None
+            

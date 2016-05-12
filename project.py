@@ -9,6 +9,7 @@ project = dict(
     description='A basic cross-platform project management tool with a focus on one-man projects.',
     author='Tim Diels',  # will appear in copyright mentioned in documentation: 'year, your name'
     author_email='timdiels.m@gmail.com',
+    python_version=(3,5),
     readme_file='README.md',
     url='https://github.com/timdiels/garage_pm', # project homepage
     download_url='https://github.com/timdiels/garage_pm/releases/v{version}.tar.gz', # Template for url to download source archive from. You can refer to the current version with {version}. You can get one from github or gitlab for example.

@@ -19,6 +19,7 @@ from ._task_state import TaskStateData
 from ._effort_task_state import EffortTaskState
 from ._branch_task_state import BranchTaskState
 from ._delegated_task_state import DelegatedTaskState
+from ._common import PlanningState
 
 class Task(object):
     
@@ -46,7 +47,7 @@ class Task(object):
             setattr(self._state, attr, value)
     
     def _become_branch_task(self, index, children):
-        self._state = BranchTaskState(self._common, self.planning_state, index, children)
+        self._state = BranchTaskState(self._common, index, children)
         
     def _become_delegated_task(self):
         self._state = DelegatedTaskState(self._common)
