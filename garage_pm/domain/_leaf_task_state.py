@@ -33,13 +33,13 @@ class LeafTaskState(TaskState):
             raise ex
         if self._planning_state != value:
             self._planning_state = value
-            self._task.events.planning_state_changed.emit(self._planning_state)
+            self._task.events.planning_state_changed.emit(self._task)
     
     def validate_set_planning_state(self, state):
-        if state == PlanningState.finished and self._has_unfinished_end_dependencies:
+        if state == PlanningState.finished and self._has_unfinished_dependencies:
             return ValueError('Cannot finish before end_dependencies have finished')
-        elif state != PlanningState.finished and self._has_finished_depender:
-            return ValueError('Cannot unfinish task as a finished task depends on it (perhaps indirectly)')
+        elif state == PlanningState.planned and self._has_finished_depender:
+            return ValueError('Cannot set task planned as a finished task depends on it (perhaps indirectly)')
         else:
             return None
         
@@ -47,14 +47,15 @@ class LeafTaskState(TaskState):
     def children(self):
         return ()
     
-    def insert_children(self, index, children):
-        reason = self.validate_insert_children(index, children)
+    def _insert_child(self, index, child):
+        reason = self._validate_insert_child(index, child)
         if reason:
             raise reason
         else:
-            self._task._become_branch_task(index, children)
+            self._task._become_branch_task()
+            self._task._insert_child(index, child)
     
-    def validate_insert_children(self, index, children):
+    def _validate_insert_child(self, index, child):
         if self.planning_state == PlanningState.finished:
             return InvalidOperationError('Cannot insert children into finished task')
         elif self.actual_effort:

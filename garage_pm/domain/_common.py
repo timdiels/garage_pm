@@ -80,3 +80,24 @@ class EstimateType(Enum):
     likely = 'Likely'
     pessimistic = 'Pessimistic'
     
+    
+class TaskNodeType(Enum):
+    
+    '''
+    Types of task nodes in dependency graph
+    '''
+    
+    start = 'start'
+    end = 'end'
+
+class DependencyCycleError(Exception):
+    
+    '''
+    Dependency graph contains cycle, this is an internal error, you will usually
+    see it as ValueError instead
+    
+    Parameters
+    ----------
+    cycles : str
+        e.g. ``task1.start -> task1.end -> task1.start``
+    '''

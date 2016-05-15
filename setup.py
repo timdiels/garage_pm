@@ -48,7 +48,7 @@ setup(
                                       'pytest-cov',
                                       'pytest-mock',
                                       'coverage-pth']},
-    'install_requires': ['chicken-turtle-util', 'click', 'pyxdg', 'more-itertools'],
+    'install_requires': ['chicken-turtle-util', 'click', 'pyxdg', 'more-itertools', 'networkx'],
     'keywords': 'office project-management',
     'license': 'LGPL3',
     'long_description': 'A basic cross-platform project management tool with a focus on one-man\n'

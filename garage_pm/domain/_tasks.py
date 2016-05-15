@@ -15,9 +15,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Garage PM.  If not, see <http://www.gnu.org/licenses/>.
 
-'''
-PM domain classes
-'''
-
-from ._common import PlanningState, Interval, EstimateType
+import networkx as nx
 from ._task import Task
+
+class Tasks(object): #TODO if this class doesn't fill up with features, might as well throw it away
+    
+    def __init__(self, context):
+        self.task_dependency_graph = nx.DiGraph()
+        self._root_task = Task('Root task', context)
+        
+    @property
+    def root_task(self):
+        return self._root_task

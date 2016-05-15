@@ -19,3 +19,19 @@
 from signal import signal, SIGPIPE, SIG_DFL
 signal(SIGPIPE, SIG_DFL) # Ignore SIGPIPE
 
+import pytest
+from garage_pm.main import Context
+from click.testing import CliRunner
+
+@pytest.fixture
+def context():
+    _context = []
+    
+    @Context.command()
+    def main(context):
+        _context.append(context)
+    
+    CliRunner().invoke(main, catch_exceptions=False)
+    
+    return _context[0]
+

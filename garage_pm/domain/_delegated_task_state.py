@@ -25,7 +25,7 @@ class DelegatedTaskState(LeafTaskState):
         super().__init__(common_data)
         self._duration = None
             
-    def validate_insert_children(self, index, children):
+    def _validate_insert_child(self, index, child):
         return InvalidOperationError('Cannot add child tasks to a delegated task')
 
     def _get_delegated(self):

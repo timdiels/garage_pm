@@ -15,16 +15,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Garage PM.  If not, see <http://www.gnu.org/licenses/>.
 
-from ._task_state import TaskStateData
-from ._effort_task_state import EffortTaskState
-from ._branch_task_state import BranchTaskState
-from ._delegated_task_state import DelegatedTaskState
-from ._common import PlanningState
-
 class Task(object):
     
     '''
     See `TaskState` for full interface.
+    
+    Do not create this directly. Use context.tasks.root instead.
     
     Parameters
     ----------
@@ -33,9 +29,15 @@ class Task(object):
         parent of self.events, do not confuse it with self.parent, the Task parent
     '''
     
-    def __init__(self, name, qt_parent):
-        self._common = TaskStateData(name, self, qt_parent)
-        self._state = EffortTaskState(self._common)
+    def __init__(self, name, context, is_root=False):
+        self._common = TaskStateData(name, self, context, is_root)
+        if is_root:
+            self._state = BranchTaskState(self._common)
+        else:
+            self._become_effort_task()
+        
+        # one time init (not to be repeated when changing state)
+        self._dependency_graph.add_nodes_from([self.start_node, self.end_node])
         
     def __getattr__(self, attr):
         return getattr(self._state, attr)
@@ -46,16 +48,25 @@ class Task(object):
         else:
             setattr(self._state, attr, value)
     
-    def _become_branch_task(self, index, children):
-        self._state = BranchTaskState(self._common, index, children)
+    def _become_branch_task(self):
+        self._state = BranchTaskState(self._common)
+        self._dependency_graph.remove_edge(self.end_node, self.start_node)
+        
+    def __become_leaf_task(self):
+        self._dependency_graph.add_edge(self.end_node, self.start_node, {'active': True})
         
     def _become_delegated_task(self):
         self._state = DelegatedTaskState(self._common)
+        self.__become_leaf_task()
         
     def _become_effort_task(self):
         self._state = EffortTaskState(self._common)
+        self.__become_leaf_task()
         
     def __repr__(self):
         return 'Task({!r})'.format(self.name)
     
-    
+from ._task_state import TaskStateData
+from ._effort_task_state import EffortTaskState
+from ._branch_task_state import BranchTaskState
+from ._delegated_task_state import DelegatedTaskState
