@@ -206,7 +206,7 @@ class TestEffort(object):
         Test simple case for actual effort
         '''
         assert task2.actual_effort == timedelta()
-        task2.insert_effort_spent(0, [interval1])
+        task2.insert_effort_spent(0, interval1)
         assert task2.actual_effort == interval1.duration
         
     class TestEvents(object):
@@ -247,7 +247,7 @@ class TestEffort(object):
             actual_changed = mocker.Mock()
             task2.events.actual_effort_changed.connect(actual_changed)
             
-            task2.insert_effort_spent(0, [interval1])
+            task2.insert_effort_spent(0, interval1)
             actual_changed.assert_called_once_with(task2)
             assert task2.actual_effort == interval1.duration
             actual_changed.reset_mock()
@@ -256,10 +256,22 @@ class TestEffort(object):
         '''
         When inserting in a leaf with actual_effort!=0, raise
         '''
-        task2.insert_effort_spent(0, [interval1])
+        task2.insert_effort_spent(0, interval1)
         with pytest.raises(InvalidOperationError) as ex:
             task11.move(task2, 0)
         assert 'Leaf task with effort spent on it cannot become a branch task' in str(ex.value)
+        
+    def test_no_overlapping_effort_intervals(self, task2, task11):
+        '''
+        Do not allow effort intervals to overlap, not even across tasks of the same context
+        '''
+        now = datetime.now()
+        interval1 = Interval(now, now + timedelta(minutes=2))
+        interval2 = Interval(now + timedelta(minutes=1), now + timedelta(minutes=3))
+        task2.insert_effort_spent(0, interval1)
+        with pytest.raises(ValueError) as ex:
+            task11.insert_effort_spent(0, interval2)
+        assert 'Effort intervals may not overlap: ' in str(ex.value)
         
 class TestDelegated(object):
     
@@ -285,7 +297,7 @@ class TestDelegated(object):
         assert task2.actual_effort == timedelta()  # is an effort task again
         
         # cannot delegate task with effort spent
-        task2.insert_effort_spent(0, [interval1])
+        task2.insert_effort_spent(0, interval1)
         with pytest.raises(ValueError):
             task2.delegated = True
         
@@ -326,7 +338,7 @@ class TestPlanningState(object):
         assert 'Cannot finish a task effortlessly' in str(ex.value)
         
         # can finish with effort
-        task2.insert_effort_spent(0, [interval1])
+        task2.insert_effort_spent(0, interval1)
         task2.planning_state = PlanningState.finished
     
     def test_delegated_task(self, task2):
@@ -439,14 +451,14 @@ class TestPlanningState(object):
         '''
         
         def test_effort_task(self, task2, interval1):
-            task2.insert_effort_spent(0, [interval1])
+            task2.insert_effort_spent(0, interval1)
             task2.planning_state = PlanningState.finished
             with pytest.raises(InvalidOperationError):
                 task2.effort_estimates[EstimateType.likely] = None
             with pytest.raises(InvalidOperationError):
-                task2.insert_effort_spent(0, [interval1])
+                task2.insert_effort_spent(0, interval1)
             with pytest.raises(InvalidOperationError):
-                task2.remove_effort_spent(0, 1)
+                task2.remove_effort_spent(interval1)
             with pytest.raises(InvalidOperationError):
                 task2.delegated = True
                 
@@ -459,7 +471,7 @@ class TestPlanningState(object):
                 task2.delegated = False
                 
 def test_is_active(task2, interval1):
-    task2.insert_effort_spent(0, [interval1])
+    task2.insert_effort_spent(0, interval1)
     assert task2.is_active
     task2.planning_state = PlanningState.finished
     assert task2.is_active
@@ -569,7 +581,7 @@ class TestDependencies(object):
         class TestCannotMutateIfFinished(object):
             
             def test_effort_task(self, task1, task2, interval1):
-                task2.insert_effort_spent(0, [interval1])
+                task2.insert_effort_spent(0, interval1)
                 task2.planning_state = PlanningState.finished
                 with pytest.raises(InvalidOperationError):
                     task2.add_dependency(task1)
@@ -690,7 +702,7 @@ class TestDependencies(object):
             task111.planning_state = PlanningState.finished
         assert 'Cannot finish before end_dependencies have finished' in str(ex.value)
         
-        task2.insert_effort_spent(0, [interval1])
+        task2.insert_effort_spent(0, interval1)
         task2.planning_state = PlanningState.finished
         task111.planning_state = PlanningState.finished
     
@@ -714,9 +726,9 @@ class TestDependencies(object):
             if delegated:
                 task112.delegated = True
             else:
-                task112.insert_effort_spent(0, [interval2])
+                task112.insert_effort_spent(0, interval2)
             task112.planning_state = PlanningState.finished
-            task111.insert_effort_spent(0, [interval1])
+            task111.insert_effort_spent(0, interval1)
             task111.planning_state = PlanningState.finished
             
             # test
@@ -736,9 +748,9 @@ class TestDependencies(object):
             '''
             # setup
             task2.add_dependency(task1)
-            task111.insert_effort_spent(0, [interval1])
+            task111.insert_effort_spent(0, interval1)
             task111.planning_state = PlanningState.finished
-            task2.insert_effort_spent(0, [interval2])
+            task2.insert_effort_spent(0, interval2)
             task2.planning_state = PlanningState.finished
             
             # raise on adding planned child to depended branch
@@ -777,9 +789,6 @@ class TestDependencies(object):
             
         
 # TODO
-
-# Tests updated to match redesign, simply run and implement!
-
 
 # Time tracking: only a single task can be worked on at a time. All tasks should
 # have access to a Context with an attrib for the currently tracked task, along

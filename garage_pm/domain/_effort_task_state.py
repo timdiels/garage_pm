@@ -103,19 +103,29 @@ class EffortTaskState(LeafTaskState):
         Parameters
         ----------
         index : int
-        effort : [Interval]
+        effort : Interval
         '''
         if self._has_unfinished_dependencies:
             raise InvalidOperationError('Cannot spend effort on task before its end_dependencies have finished')
         if self.planning_state == PlanningState.finished:
             raise InvalidOperationError('Cannot insert effort into finished task')
-        self._effort_spent[index:index] = effort
+        for interval in self._context.effort_intervals:
+            if effort.overlaps(interval):
+                raise ValueError('Effort intervals may not overlap: {} and {}'.format(interval, effort))
+        self._effort_spent.insert(index, effort)
+        self._context.effort_intervals.append(effort)
         self.events.effort_spent_changed.emit(self._task)
         
-    def remove_effort_spent(self, begin, end):
+    def remove_effort_spent(self, effort):
+        '''
+        Parameters
+        ----------
+        effort : Interval
+        '''
         if self.planning_state == PlanningState.finished:
             raise InvalidOperationError('Cannot remove effort from finished task')
-        del self._effort_spent[begin:end]
+        self._effort_spent.remove(effort)
+        self._context.effort_intervals.remove(effort)
         self.events.effort_spent_changed.emit(self._task)
         
     def validate_set_planning_state(self, state):

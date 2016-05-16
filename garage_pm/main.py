@@ -29,12 +29,19 @@ class Context(cli.DataDirectoryMixin('garage_pm'), cli.BasicsMixin(__version__),
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.qt_parent = QObject() #XXX if this ever gives trouble, try finding a better QObject as parent, e.g. the mainwindow. Or stop using qt signals in the domain, only use qt's existing signals.
+        
+        # task tree things
         self._task_dependency_graph = nx.DiGraph()
+        self._effort_intervals = []
         self._root_task = Task('Root task', self, is_root=True)
     
     @property
     def task_dependency_graph(self):
         return self._task_dependency_graph
+    
+    @property
+    def effort_intervals(self):
+        return self._effort_intervals
         
     @property
     def root_task(self):

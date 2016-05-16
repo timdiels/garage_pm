@@ -19,16 +19,21 @@ from enum import Enum
 
 class Interval(object):
     
+    '''
+    Half open [start,end) interval
+    
+    Finest granularity is minutes (seconds, ... ignored)
+    
+    Parameters
+    ----------
+    start : datetime.datetime
+    end : datetime.datetime
+    '''
+    
     def __init__(self, begin, end):
-        '''
-        Parameters
-        ----------
-        start : datetime.datetime
-        end : datetime.datetime
-        '''
-        assert begin < end 
-        self._begin = begin
-        self._end = end
+        self._begin = begin.replace(second=0, microsecond=0)
+        self._end = end.replace(second=0, microsecond=0)
+        self._validate(begin, end)
         
     @property
     def begin(self):
@@ -58,11 +63,20 @@ class Interval(object):
     def duration(self):
         return self._end - self._begin
     
+    def __eq__(self, other):
+        return self.begin == other.begin and self.end == other.end
+    
     def __lt__(self, other):
         if self.begin == other.begin:
             return self.end < other.end
         else:
             return self.begin < other.begin
+        
+    def overlaps(self, other):
+        return not (self.end <= other.begin or other.end <= self.begin)
+    
+    def __repr__(self):
+        return 'Interval(begin={}, end={})'.format(self.begin, self.end)
 
 class PlanningState(Enum):
     not_planned = 'Not planned'
