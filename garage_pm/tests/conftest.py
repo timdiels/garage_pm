@@ -22,9 +22,10 @@ signal(SIGPIPE, SIG_DFL) # Ignore SIGPIPE
 import pytest
 from garage_pm.main import Context
 from click.testing import CliRunner
+from freezegun import freeze_time
 
 @pytest.fixture
-def context():
+def context(qapp):
     _context = []
     
     @Context.command()
@@ -35,3 +36,12 @@ def context():
     
     return _context[0]
 
+@pytest.yield_fixture
+def now():
+    '''
+    Freezegun fake time
+    
+    Note: pyqt ignores freezegun
+    '''
+    with freeze_time('2000-1-1') as frozen_datetime:
+        yield frozen_datetime

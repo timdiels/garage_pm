@@ -20,30 +20,33 @@ Test garage_pm.domain
 '''
 
 # Note: Each test takes into account only the features it introduces and all
-# those that appear above it (in case those may cause conflicts).
+# those that appear above it (in case those may cause conflicts). Conversely, at
+# each line all features define up to that line have been fully tested (when
+# ignoring any features below that do affect their behaviour, for which tests
+# are added below that line)
 
 import pytest
 from chicken_turtle_util.exceptions import InvalidOperationError
-from garage_pm.domain import Task, Interval, EstimateType, PlanningState
+from garage_pm.domain import Interval, EstimateType, PlanningState
 from datetime import datetime, timedelta
 from itertools import product
 
 @pytest.fixture
-def interval1():
-    return Interval(datetime.now(), datetime.now() + timedelta(minutes=1))
+def interval1(now):
+    return Interval(now()  - timedelta(minutes=1), now())
 
 @pytest.fixture
 def interval2(interval1):
     delta = timedelta(minutes=1)
-    return Interval(interval1.begin + delta, interval1.end + delta)
+    return Interval(interval1.begin - delta, interval1.end - delta)
 
 @pytest.fixture
 def interval3(interval2):
     delta = timedelta(minutes=1)
-    return Interval(interval2.begin + delta, interval2.end + delta)
+    return Interval(interval2.begin - delta, interval2.end - delta)
 
 @pytest.fixture
-def root_task(context):
+def root_task(context, now):
     task = context.root_task
     t1 = task.append_new_task('task1')
     t11 = task.append_new_task('task11')
@@ -78,6 +81,11 @@ def task2(root_task):
 def dep_graph(context):
     return context.task_dependency_graph
     
+# Note: time granularity is minutes, overall. E.g. intervals anything less than
+# minutes in their start and end. E.g. Interval(now, now+ 1 second) would raise
+# as it interprets it as Interval(now, now) and it can't be empty.
+# TODO test Interval?
+
 class TestTaskTreeStructure(object):
     
     '''
@@ -261,17 +269,30 @@ class TestEffort(object):
             task11.move(task2, 0)
         assert 'Leaf task with effort spent on it cannot become a branch task' in str(ex.value)
         
-    def test_no_overlapping_effort_intervals(self, task2, task11):
+    def test_no_overlapping_effort_intervals(self, task2, task11, now):
         '''
         Do not allow effort intervals to overlap, not even across tasks of the same context
         '''
-        now = datetime.now()
-        interval1 = Interval(now, now + timedelta(minutes=2))
-        interval2 = Interval(now + timedelta(minutes=1), now + timedelta(minutes=3))
+        interval1 = Interval(now() - timedelta(minutes=2), now())
+        interval2 = Interval(now() - timedelta(minutes=3), now() - timedelta(minutes=1))
         task2.insert_effort_spent(0, interval1)
         with pytest.raises(ValueError) as ex:
             task11.insert_effort_spent(0, interval2)
         assert 'Effort intervals may not overlap: ' in str(ex.value)
+        
+    def test_dispose(self, task2, task11, interval1):
+        '''
+        When disposed, its effort intervals are released
+        '''
+        task2.insert_effort_spent(0, interval1)
+        task2.dispose()
+        task11.insert_effort_spent(0, interval1)
+        
+    def test_cannot_insert_future_effort(self, now, task2):
+        future = now() + timedelta(minutes=1)
+        with pytest.raises(ValueError) as ex:
+            task2.insert_effort_spent(0, Interval(now(), future))
+        assert 'Effort spent may not lie in the future: ' in str(ex.value)
         
 class TestDelegated(object):
     
@@ -787,8 +808,204 @@ class TestDependencies(object):
                 assert task111.validate_set_planning_state(planning_state) is None
                 task111.planning_state = planning_state
             
+def test_minute_timer(context, qtbot):
+    minute = datetime.now().minute
+    for i in range(2):
+        with qtbot.waitSignal(context.minute_timer.timeout, timeout=60000, raising=True) as blocker:
+            blocker.wait()
+        now = datetime.now()
+        assert now.second == 0
+        assert now.minute == minute + i + 1
+    assert False
+    
+class TestTimeTracker(object):
+    
+    @pytest.fixture
+    def time_tracker(self, context):
+        return context.time_tracker
+    
+    def test_happy_days(self, time_tracker, task2, context, qtbot):
+        assert time_tracker.current_task is None
+        assert time_tracker.current_interval is None
+        
+        # When less than a minute has passed, no new effort spent entry is shown
+        start = now()
+        time_tracker.start(task2)
+        assert time_tracker.current_task == task2
+        assert time_tracker.current_interval is None
+        assert task2.actual_effort == timedelta()  # no time has passed
+        assert task2.effort_spent == ()
+        
+        now.tick(timedelta(seconds=59))
+        qapp.processEvents()
+        assert time_tracker.current_interval is None
+        assert task2.actual_effort == timedelta()
+        assert task2.effort_spent == ()
+        
+        # When at least a minute has passed, include it
+        now.tick(timedelta(seconds=10)) #TODO no, 1 sec
+        qapp.processEvents()
+        interval = Interval(start, now())
+        assert task2.actual_effort == interval.duration
+        assert task2.effort_spent == (interval,)
+        assert False
+        
+        # When we stop, it is still included
+        time_tracker.stop()
+        assert time_tracker.current_task is None
+        assert task2.actual_effort == interval.duration
+        assert task2.effort_spent == (interval,)
+        
+    def test_actual_effort_changed_event(self, time_tracker, task2, now, mocker):
+        on_changed = mocker.Mock()
+        task2.events.actual_effort_changed.connect(on_changed)
+        
+        # When time tracking starts, no event
+        time_tracker.start(task2)
+        on_changed.assert_not_called()
+        assert task2.actual_effort == timedelta()
+        
+        # When time tracking 59 seconds, no event
+        now.tick(timedelta(seconds=59))
+        on_changed.assert_not_called()
+        assert task2.actual_effort == timedelta()
+        
+        # When stopping at 59s, no event
+        time_tracker.stop()
+        on_changed.assert_not_called()
+        assert task2.actual_effort == timedelta()
+        
+        # When time tracking for 1 minute, event
+        time_tracker.start(task2)
+        now.tick(timedelta(minutes=1))
+        on_changed.assert_called_once_with(task2)
+        on_changed.reset_mock()
+        assert task2.actual_effort == timedelta(minutes=1)
+        
+        # When time tracking for 1 minute 59 seconds, no event
+        now.tick(timedelta(seconds=59))
+        on_changed.assert_not_called()
+        assert task2.actual_effort == timedelta(minutes=1)
+        
+        # When time tracking for 2 minutes, another event (i.e. each minute because that's our granularity)
+        now.tick(timedelta(seconds=1))
+        on_changed.assert_called_once_with(task2)
+        on_changed.reset_mock()
+        assert task2.actual_effort == timedelta(minutes=2)
+        
+    def test_premature_stop(self, time_tracker, task2, now):
+        '''
+        When timer is stopped before a minute has passed, no effort is added to the tracked task 
+        '''
+        time_tracker.start(task2)
+        now.tick(timedelta(seconds=59))
+        time_tracker.stop()
+        assert task2.actual_effort == timedelta()
+        assert task2.effort_spent == ()
+        
+    def test_cannot_track_branch(self, time_tracker, task1):
+        with pytest.raises(ValueError) as ex:
+            time_tracker.start(task1)
+        assert 'Can only time track effort tasks' in str(ex.value)
+        
+    def test_cannot_become_branch_if_tracked(self, time_tracker, task2, task11):
+        time_tracker.start(task2)
+        with pytest.raises(ValueError) as ex:
+            task11.move(task2, 0)
+        assert 'Cannot move into task which is being time tracked' in str(ex.value)
+        
+    def test_cannot_track_delegated(self, time_tracker, task2):
+        task2.delegated = True
+        with pytest.raises(ValueError) as ex:
+            time_tracker.start(task2)
+        assert 'Can only time track effort tasks' in str(ex.value)
+        
+    def test_cannot_become_delegated_if_tracked(self, time_tracker, task2):
+        time_tracker.start(task2)
+        with pytest.raises(ValueError) as ex:
+            task2.delegated = True
+        assert 'Cannot become delegated while being time tracked' in str(ex.value)
+        
+        # This is fine though
+        task2.delegated = False
+        
+    def test_can_only_track_planned(self, time_tracker):
+        for planning_state in PlanningState:
+            if planning_state == PlanningState.planned:
+                continue
+            with pytest.raises(ValueError) as ex:
+                time_tracker.start(task1)
+            assert 'Can only time track planned tasks' in str(ex.value)
+        
+    def test_cannot_become_unplanned_if_tracked(self, time_tracker, task2):
+        time_tracker.start(task2)
+        for planning_state in PlanningState:
+            if planning_state == PlanningState.planned:
+                continue
+            with pytest.raises(ValueError) as ex:
+                task2.planning_state = planning_state
+            assert 'Cannot become non-planned when time tracked' in str(ex.value)
+        
+        # This is fine though
+        task2.planning_state = PlanningState.planned
+        
+    def test_cannot_start_if_started(self, time_tracker, task2, task11):
+        time_tracker.start(task2)
+        
+        with pytest.raises(InvalidOperationError) as ex:
+            time_tracker.start(task2)
+        assert 'Cannot start time tracking when already tracking' in str(ex.value)
+        
+        with pytest.raises(InvalidOperationError) as ex:
+            time_tracker.start(task11)
+        assert 'Cannot start time tracking when already tracking' in str(ex.value)
+        
+    def test_cannot_stop_if_stopped(self, time_tracker):
+        with pytest.raises(InvalidOperationError) as ex:
+            time_tracker.stop()
+        assert 'Cannot stop time tracking when already stopped' in str(ex.value)
+        
+    def test_cannot_mutate_dependencies_if_tracked(self, time_tracker, task2, task11):
+        time_tracker.start(task2)
+        
+        with pytest.raises(InvalidOperationError) as ex:
+            task2.add_dependency(task11)
+        assert 'Cannot add dependency from time tracked task' in str(ex.value)
+        
+        with pytest.raises(InvalidOperationError) as ex:
+            task2.remove_dependency(task11)
+        assert 'Cannot remove dependency from time tracked task' in str(ex.value)
+        
+        with pytest.raises(InvalidOperationError) as ex:
+            task2.move(task11, 0)
+        assert 'Cannot move time tracked task' in str(ex.value)
+        
+    def test_dispose_if_tracked(self, time_tracker, task2, task11):
+        time_tracker.start(task2)
+        task2.dispose()
+        assert time_tracker.current_task is None  # tracking has stopped
+        
+    def test_other_interval_may_not_overlap_current_time_tracking_interval(self, time_tracker, task2, now):
+        time_tracker.start(task2)
+        
+        # test edge case: interval up to now
+        past_interval = Interval(now()-timedelta(seconds=1), now())
+        task2.insert_effort_spent(0, past_interval)
+        
+        # even the slightest overlap with current time tracking raises
+        now.tick(timedelta(seconds=1))
+        with pytest.raises(ValueError) as ex:
+            task2.insert_effort_spent(0, Interval(past_interval.end, now()))
+        assert 'bleh' in str(ex.value)
+        
+        # test all is well when time tracking gets added in the face of earlier edge case
+        now.tick(timedelta(minutes=1))
+        time_tracker.stop()
+        assert set(task2.effort_spent) == {past_interval, Interval(past_interval.end, now())}
         
 # TODO
+
+# freezegun doesn't work on pyqt. Must use qtbot.wait(ms), https://pytest-qt.readthedocs.io/en/1.11.0/reference.html
 
 # Time tracking: only a single task can be worked on at a time. All tasks should
 # have access to a Context with an attrib for the currently tracked task, along

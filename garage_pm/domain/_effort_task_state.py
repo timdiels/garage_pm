@@ -20,13 +20,13 @@ from datetime import timedelta
 from chicken_turtle_util.exceptions import InvalidOperationError
 from ._common import EstimateType, PlanningState
 from ._leaf_task_state import LeafTaskState
+from datetime import datetime
     
 class EffortTaskState(LeafTaskState):
     
     def __init__(self, common_data):
         super().__init__(common_data)
         self._effort_estimates = _EffortEstimates(self._task, self._context)
-        self._effort_spent = []
         self._events = _EffortTaskStateEvents(self._context.qt_parent)
         
         # predicted effort
@@ -34,6 +34,11 @@ class EffortTaskState(LeafTaskState):
         for estimate_type in EstimateType:
             self.effort_estimates.changed[estimate_type].connect(self._update_predicted_effort)
 
+        # effort spent
+        self.__effort_spent = []
+        self._effort_spent = ()
+        self._context.time_tracker.events.current_interval_changed.connect(self._update_effort_spent)
+            
         # actual effort
         self._actual_effort = timedelta()
         self._events.effort_spent_changed.connect(self._update_actual_effort)
@@ -82,7 +87,7 @@ class EffortTaskState(LeafTaskState):
     
     def _update_actual_effort(self):
         old_value = self._actual_effort
-        self._actual_effort = sum((x.duration for x in self._effort_spent), timedelta())
+        self._actual_effort = sum((x.duration for x in self.effort_spent), timedelta())
         if old_value != self._actual_effort:
             self.events.actual_effort_changed.emit(self._task)
     
@@ -96,7 +101,17 @@ class EffortTaskState(LeafTaskState):
         tuple([Interval])
             Time intervals of effort spent on the task 
         '''
-        return tuple(self._effort_spent)
+        return self._effort_spent
+    
+    def _update_effort_spent(self):
+        old = self._effort_spent
+        self._effort_spent = list(self.__effort_spent)
+        time_tracker = self._context.time_tracker
+        if time_tracker.current_task == self._task and time_tracker.current_interval:
+            self._effort_spent.append(time_tracker.current_interval)
+        self._effort_spent = tuple(self._effort_spent)
+        if self._effort_spent != old:
+            self.events.effort_spent_changed.emit(self._task)
     
     def insert_effort_spent(self, index, effort):
         '''
@@ -109,12 +124,14 @@ class EffortTaskState(LeafTaskState):
             raise InvalidOperationError('Cannot spend effort on task before its end_dependencies have finished')
         if self.planning_state == PlanningState.finished:
             raise InvalidOperationError('Cannot insert effort into finished task')
+        if effort.end > datetime.now():
+            raise ValueError('Effort spent may not lie in the future: {}'.format(effort))
         for interval in self._context.effort_intervals:
-            if effort.overlaps(interval):
+            if effort.intersects(interval):
                 raise ValueError('Effort intervals may not overlap: {} and {}'.format(interval, effort))
-        self._effort_spent.insert(index, effort)
-        self._context.effort_intervals.append(effort)
-        self.events.effort_spent_changed.emit(self._task)
+        self.__effort_spent.insert(index, effort)
+        self._context.effort_intervals.add(effort)
+        self._update_effort_spent()
         
     def remove_effort_spent(self, effort):
         '''
@@ -124,9 +141,9 @@ class EffortTaskState(LeafTaskState):
         '''
         if self.planning_state == PlanningState.finished:
             raise InvalidOperationError('Cannot remove effort from finished task')
-        self._effort_spent.remove(effort)
+        self.__effort_spent.remove(effort)
         self._context.effort_intervals.remove(effort)
-        self.events.effort_spent_changed.emit(self._task)
+        self._update_effort_spent()
         
     def validate_set_planning_state(self, state):
         ex = super().validate_set_planning_state(state)
@@ -144,6 +161,11 @@ class EffortTaskState(LeafTaskState):
         if self.effort_spent and delegated:
             return ValueError('Cannot delegate task that already has effort spent on it')
         return None
+    
+    def dispose(self):
+        super().dispose()
+        self._context.effort_intervals -= set(self.effort_spent)
+        self._context.time_tracker.events.current_interval_changed.disconnect(self._update_effort_spent)
             
 from ._task import Task
 
@@ -209,7 +231,7 @@ class _EffortEstimates(object):
 class _EffortTaskStateEvents(QObject):
     predicted_effort_changed = pyqtSignal(Task)
     actual_effort_changed = pyqtSignal(Task)
-    effort_spent_changed = pyqtSignal(Task)
+    effort_spent_changed = pyqtSignal(Task) #TODO add a test for time tracking hitting 1 minute, at that point, and every tick from then on, an event should be sent out as effort spent will have changed. If we added a cancel, that affects it too (if >=1min)
     
     def __init__(self, parent=None):
         super().__init__(parent)

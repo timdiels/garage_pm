@@ -4,3 +4,6 @@ pytest-xdist
 pytest-cov
 pytest-mock
 coverage-pth
+freezegun
+pytest-qt
+pytest-capturelog

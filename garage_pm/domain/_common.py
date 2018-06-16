@@ -17,6 +17,9 @@
 
 from enum import Enum
 
+class EmptyIntervalError(ValueError):
+    pass
+
 class Interval(object):
     
     '''
@@ -33,7 +36,7 @@ class Interval(object):
     def __init__(self, begin, end):
         self._begin = begin.replace(second=0, microsecond=0)
         self._end = end.replace(second=0, microsecond=0)
-        self._validate(begin, end)
+        self._validate(self._begin, self._end)
         
     @property
     def begin(self):
@@ -57,11 +60,14 @@ class Interval(object):
         if begin > end:
             raise ValueError('Interval must begin before it ends')
         if begin == end:
-            raise ValueError('Interval must not be empty (i.e. begin != end)')
+            raise EmptyIntervalError('Interval must not be empty (i.e. begin != end)')
     
     @property
     def duration(self):
         return self._end - self._begin
+    
+    def __hash__(self):
+        return hash((self.begin, self.end))
     
     def __eq__(self, other):
         return self.begin == other.begin and self.end == other.end
@@ -72,7 +78,7 @@ class Interval(object):
         else:
             return self.begin < other.begin
         
-    def overlaps(self, other):
+    def intersects(self, other):
         return not (self.end <= other.begin or other.end <= self.begin)
     
     def __repr__(self):

@@ -47,7 +47,10 @@ setup(
                                       'pytest-xdist',
                                       'pytest-cov',
                                       'pytest-mock',
-                                      'coverage-pth']},
+                                      'coverage-pth',
+                                      'freezegun',
+                                      'pytest-qt',
+                                      'pytest-capturelog']},
     'install_requires': ['chicken-turtle-util', 'click', 'pyxdg', 'more-itertools', 'networkx'],
     'keywords': 'office project-management',
     'license': 'LGPL3',
@@ -68,7 +71,7 @@ setup(
                         '-  run with ``garage-pm``\n',
     'name': 'garage-pm',
     'package_data': {},
-    'packages': ['garage_pm', 'garage_pm.tests', 'garage_pm.domain'],
+    'packages': ['garage_pm', 'garage_pm.domain', 'garage_pm.tests'],
     'url': 'https://github.com/timdiels/garage_pm',
     'version': '0.0.0'}
 )
